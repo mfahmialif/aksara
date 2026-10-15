@@ -1,0 +1,93 @@
+@import 'tailwindcss';
+
+@source '../../resources/views/**/*.blade.php';
+@source '../../resources/js/**/*.{js,ts,jsx,tsx}';
+
+@theme {
+    --color-neo-yellow: #FFDC58;
+    --color-neo-purple: #A388EE;
+    --color-neo-mint: #7FBC8C;
+    --color-neo-coral: #FF6B6B;
+    --color-neo-sky: #69D2E7;
+    --color-neo-pink: #FF8FAB;
+    --color-neo-orange: #FFA94D;
+    --color-neo-cream: #FFFDF8;
+    --color-neo-muted: #F4F0EA;
+
+    --font-heading: 'Space Grotesk', 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+:root {
+    --neo-border-color: #000000;
+}
+
+body {
+    background-color: #FFFDF8;
+    color: #111111;
+    font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: var(--font-heading);
+}
+
+/* Neobrutalism Utility Classes */
+.neo-box {
+    background-color: #ffffff;
+    border: 2px solid #000000;
+    box-shadow: 4px 4px 0px 0px #000000;
+}
+
+.neo-box-lg {
+    background-color: #ffffff;
+    border: 3px solid #000000;
+    box-shadow: 6px 6px 0px 0px #000000;
+}
+
+.neo-box-sm {
+    background-color: #ffffff;
+    border: 2px solid #000000;
+    box-shadow: 2px 2px 0px 0px #000000;
+}
+
+.neo-btn {
+    border: 2px solid #000000;
+    box-shadow: 4px 4px 0px 0px #000000;
+    font-weight: 700;
+    transition: all 150ms ease-out;
+}
+
+.neo-btn:hover:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px 0px #000000;
+}
+
+.neo-btn:active:not(:disabled) {
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px 0px #000000;
+}
+
+.neo-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.neo-input {
+    border: 2px solid #000000;
+    box-shadow: 3px 3px 0px 0px #000000;
+    outline: none;
+    transition: all 150ms ease;
+    background-color: #ffffff;
+}
+
+.neo-input:focus {
+    box-shadow: 5px 5px 0px 0px #000000;
+    border-color: #000000;
+}
+
+.neo-badge {
+    border: 1.5px solid #000000;
+    box-shadow: 2px 2px 0px 0px #000000;
+    font-weight: 700;
+}
