@@ -14,7 +14,7 @@ class NoteGroupController extends Controller
         $user = Auth::user();
         $app = NoteApp::findOrFail($appId);
 
-        if (!$app->canUserEdit($user)) {
+        if (! $app->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin menambah grup di aplikasi ini.');
         }
 
@@ -30,7 +30,7 @@ class NoteGroupController extends Controller
             'sort_order' => $maxOrder + 1,
         ]);
 
-        return back()->with('success', 'Grup "' . $group->name . '" berhasil ditambahkan.');
+        return back()->with('success', 'Grup "'.$group->name.'" berhasil ditambahkan.');
     }
 
     public function update(Request $request, $id)
@@ -38,7 +38,7 @@ class NoteGroupController extends Controller
         $user = Auth::user();
         $group = NoteGroup::with('app')->findOrFail($id);
 
-        if (!$group->app->canUserEdit($user)) {
+        if (! $group->app->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin mengedit grup ini.');
         }
 
@@ -56,13 +56,13 @@ class NoteGroupController extends Controller
         $user = Auth::user();
         $group = NoteGroup::with('app')->findOrFail($id);
 
-        if (!$group->app->canUserEdit($user)) {
+        if (! $group->app->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin menghapus grup ini.');
         }
 
         $name = $group->name;
         $group->delete();
 
-        return back()->with('success', 'Grup "' . $name . '" berhasil dihapus.');
+        return back()->with('success', 'Grup "'.$name.'" berhasil dihapus.');
     }
 }

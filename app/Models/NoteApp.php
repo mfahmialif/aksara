@@ -53,21 +53,30 @@ class NoteApp extends Model
 
     public function canUserEdit(?User $user): bool
     {
-        if (!$user) return false;
-        if ($this->owner_id === $user->id) return true;
+        if (! $user) {
+            return false;
+        }
+        if ($this->owner_id === $user->id) {
+            return true;
+        }
 
         return $this->collaborators()
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id)
-                      ->orWhere('invited_email', $user->email);
+                    ->orWhere('invited_email', $user->email);
             })
             ->exists();
     }
 
     public function canUserView(?User $user): bool
     {
-        if ($this->is_public) return true;
-        if (!$user) return false;
+        if ($this->is_public) {
+            return true;
+        }
+        if (! $user) {
+            return false;
+        }
+
         return $this->canUserEdit($user);
     }
 }

@@ -56,7 +56,7 @@ class SendNoteReminders extends Command
                 }
 
                 foreach ($note->collaborators as $collab) {
-                    if ($collab->invited_email && !in_array($collab->invited_email, $recipients)) {
+                    if ($collab->invited_email && ! in_array($collab->invited_email, $recipients)) {
                         $recipients[] = $collab->invited_email;
                     }
                 }

@@ -22,7 +22,7 @@ Route::get('/s/app/{slug_token}', [PublicController::class, 'showPublicApp'])->n
 Route::get('/s/note/{slug_token}', [PublicController::class, 'showPublicNote'])->name('public.note');
 
 // --- Member Authentication Routes ---
-Route::get('/login', fn() => redirect()->route('welcome'))->name('login');
+Route::get('/login', fn () => redirect()->route('welcome'))->name('login');
 Route::get('/auth/google/redirect', [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
 Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 Route::post('/auth/dev-login', [AuthController::class, 'devLogin'])->name('auth.dev-login');

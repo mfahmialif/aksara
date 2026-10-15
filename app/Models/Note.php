@@ -64,7 +64,9 @@ class Note extends Model
 
     public function canUserEdit(?User $user): bool
     {
-        if (!$user) return false;
+        if (! $user) {
+            return false;
+        }
 
         $app = $this->group?->app;
         if ($app && $app->owner_id === $user->id) {
@@ -80,15 +82,20 @@ class Note extends Model
         return $this->collaborators()
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id)
-                      ->orWhere('invited_email', $user->email);
+                    ->orWhere('invited_email', $user->email);
             })
             ->exists();
     }
 
     public function canUserView(?User $user): bool
     {
-        if ($this->is_public) return true;
-        if ($this->group?->app?->is_public) return true;
+        if ($this->is_public) {
+            return true;
+        }
+        if ($this->group?->app?->is_public) {
+            return true;
+        }
+
         return $this->canUserEdit($user);
     }
 }

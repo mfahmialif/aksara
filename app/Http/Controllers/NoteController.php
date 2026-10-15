@@ -20,7 +20,7 @@ class NoteController extends Controller
         $user = Auth::user();
         $group = NoteGroup::with('app')->findOrFail($groupId);
 
-        if (!$group->app->canUserEdit($user)) {
+        if (! $group->app->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin membuat catatan di grup ini.');
         }
 
@@ -42,7 +42,7 @@ class NoteController extends Controller
             'deadline_at' => $category === 'task' ? now()->addDays(3)->setHour(23)->setMinute(59) : null,
             'reminder_days_before' => $reminderDays,
             'is_public' => false,
-            'public_token' => 'note-' . Str::random(24),
+            'public_token' => 'note-'.Str::random(24),
         ]);
 
         return redirect()->route('apps.show', [
@@ -56,7 +56,7 @@ class NoteController extends Controller
         $user = Auth::user();
         $note = Note::with(['group.app.owner', 'attachments', 'collaborators.user'])->findOrFail($id);
 
-        if (!$note->canUserView($user)) {
+        if (! $note->canUserView($user)) {
             abort(403, 'Anda tidak memiliki hak akses ke catatan ini.');
         }
 
@@ -71,7 +71,7 @@ class NoteController extends Controller
         $user = Auth::user();
         $note = Note::with('group.app')->findOrFail($id);
 
-        if (!$note->canUserEdit($user)) {
+        if (! $note->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin mengedit catatan ini.');
         }
 
@@ -97,7 +97,7 @@ class NoteController extends Controller
         }
 
         if (empty($note->public_token)) {
-            $validated['public_token'] = 'note-' . Str::random(24);
+            $validated['public_token'] = 'note-'.Str::random(24);
         }
 
         $note->update($validated);
@@ -110,7 +110,7 @@ class NoteController extends Controller
         $user = Auth::user();
         $note = Note::with('group.app')->findOrFail($id);
 
-        if (!$note->canUserEdit($user)) {
+        if (! $note->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin menghapus catatan ini.');
         }
 
@@ -125,7 +125,7 @@ class NoteController extends Controller
 
         $note->delete();
 
-        return redirect()->route('apps.show', $appId)->with('success', 'Catatan "' . $title . '" berhasil dihapus.');
+        return redirect()->route('apps.show', $appId)->with('success', 'Catatan "'.$title.'" berhasil dihapus.');
     }
 
     public function uploadAttachments(Request $request, $id)
@@ -133,7 +133,7 @@ class NoteController extends Controller
         $user = Auth::user();
         $note = Note::with('group.app')->findOrFail($id);
 
-        if (!$note->canUserEdit($user)) {
+        if (! $note->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin mengunggah file ke catatan ini.');
         }
 
@@ -146,12 +146,12 @@ class NoteController extends Controller
         $allowedList = array_map('trim', explode(',', strtolower($settings['allowed_extensions'])));
         $blockedList = array_map('trim', explode(',', strtolower($settings['blocked_extensions'])));
 
-        if (!$request->hasFile('files')) {
+        if (! $request->hasFile('files')) {
             return back()->with('error', 'Tidak ada file yang dipilih untuk diunggah.');
         }
 
         $uploadedFiles = $request->file('files');
-        if (!is_array($uploadedFiles)) {
+        if (! is_array($uploadedFiles)) {
             $uploadedFiles = [$uploadedFiles];
         }
 
@@ -171,8 +171,8 @@ class NoteController extends Controller
             }
 
             // 2. Check allowed extensions (if allowedList is not empty)
-            if (!empty($allowedList) && !in_array($extension, $allowedList)) {
-                return back()->with('error', "Format file .{$extension} ({$clientName}) tidak diizinkan. Format yang diizinkan: " . implode(', ', $allowedList));
+            if (! empty($allowedList) && ! in_array($extension, $allowedList)) {
+                return back()->with('error', "Format file .{$extension} ({$clientName}) tidak diizinkan. Format yang diizinkan: ".implode(', ', $allowedList));
             }
 
             // 3. Check file size
@@ -194,7 +194,7 @@ class NoteController extends Controller
             $savedAttachments[] = $attachment;
         }
 
-        return back()->with('success', count($savedAttachments) . ' file berhasil diunggah.');
+        return back()->with('success', count($savedAttachments).' file berhasil diunggah.');
     }
 
     public function deleteAttachment($id, $attachmentId)
@@ -202,7 +202,7 @@ class NoteController extends Controller
         $user = Auth::user();
         $note = Note::with('group.app')->findOrFail($id);
 
-        if (!$note->canUserEdit($user)) {
+        if (! $note->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin menghapus lampiran ini.');
         }
 
@@ -218,7 +218,7 @@ class NoteController extends Controller
         $user = Auth::user();
         $note = Note::with('group.app')->findOrFail($id);
 
-        if (!$note->canUserEdit($user)) {
+        if (! $note->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin mengundang kolaborator ke catatan ini.');
         }
 
@@ -245,7 +245,7 @@ class NoteController extends Controller
             ]
         );
 
-        return back()->with('success', 'Kolaborator khusus catatan (' . $validated['email'] . ') berhasil ditambahkan!');
+        return back()->with('success', 'Kolaborator khusus catatan ('.$validated['email'].') berhasil ditambahkan!');
     }
 
     public function removeCollaborator($id, $collabId)
@@ -253,7 +253,7 @@ class NoteController extends Controller
         $user = Auth::user();
         $note = Note::with('group.app')->findOrFail($id);
 
-        if (!$note->canUserEdit($user)) {
+        if (! $note->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin menghapus kolaborator.');
         }
 

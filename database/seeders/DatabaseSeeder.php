@@ -6,7 +6,6 @@ use App\Models\Admin;
 use App\Models\Collaborator;
 use App\Models\Note;
 use App\Models\NoteApp;
-use App\Models\NoteAttachment;
 use App\Models\NoteGroup;
 use App\Models\ReminderLog;
 use App\Models\SystemSetting;
@@ -82,7 +81,7 @@ class DatabaseSeeder extends Seeder
             'color_theme' => 'yellow',
             'description' => 'Kumpulan mata kuliah semester ganjil beserta tugas dan deadline penting.',
             'is_public' => true,
-            'public_token' => 'app-kuliah-' . Str::random(12),
+            'public_token' => 'app-kuliah-'.Str::random(12),
         ]);
 
         $appFreelance = NoteApp::create([
@@ -92,7 +91,7 @@ class DatabaseSeeder extends Seeder
             'color_theme' => 'mint',
             'description' => 'Manajemen pekerjaan sampingan, deliverable klien, dan catatan teknis.',
             'is_public' => false,
-            'public_token' => 'app-freelance-' . Str::random(12),
+            'public_token' => 'app-freelance-'.Str::random(12),
         ]);
 
         $appJurnal = NoteApp::create([
@@ -102,7 +101,7 @@ class DatabaseSeeder extends Seeder
             'color_theme' => 'purple',
             'description' => 'Ide kreatif, buku yang sedang dibaca, dan renungan harian.',
             'is_public' => false,
-            'public_token' => 'app-jurnal-' . Str::random(12),
+            'public_token' => 'app-jurnal-'.Str::random(12),
         ]);
 
         // 5. Groups in App Kuliah
@@ -139,7 +138,7 @@ class DatabaseSeeder extends Seeder
             'deadline_at' => now()->addDays(4)->setHour(23)->setMinute(59),
             'reminder_days_before' => 1,
             'is_public' => true,
-            'public_token' => 'note-makalah-' . Str::random(12),
+            'public_token' => 'note-makalah-'.Str::random(12),
             'content_json' => json_encode([
                 'html' => '<h2>Latar Belakang Analisis</h2><p>Penelitian ini membedah struktur klausa utama dan klausa bawahan dalam wacana berita modern. Tujuannya adalah mengidentifikasi konjungsi subordinatif yang paling sering menimbulkan kerancuan makna.</p><blockquote>"Bahasa adalah cermin pikiran yang tertata." - Kridalaksana</blockquote><h3>Poin Pembahasan Inti</h3><ul><li>Identifikasi relasi antar-klausa</li><li>Peran partikel penghubung</li><li>Kaidah ejaan baku EYD V</li></ul>',
                 'checklist' => [
@@ -164,7 +163,7 @@ class DatabaseSeeder extends Seeder
             'title' => 'Ringkasan Materi Morfologi & Bentuk Terikat',
             'category' => 'regular',
             'is_public' => false,
-            'public_token' => 'note-morfologi-' . Str::random(12),
+            'public_token' => 'note-morfologi-'.Str::random(12),
             'content_json' => json_encode([
                 'html' => '<h2>Morfem Bebas vs Morfem Terikat</h2><p>Morfem bebas dapat berdiri sendiri sebagai kata mandiri tanpa afiksasi. Contoh: <code>makan</code>, <code>lari</code>, <code>buku</code>.</p><p>Sedangkan morfem terikat seperti <code>ber-</code>, <code>meN-</code>, <code>-wan</code> membutuhkan morfem dasar untuk memiliki makna gramatikal penuh.</p>',
                 'checklist' => [
@@ -182,7 +181,7 @@ class DatabaseSeeder extends Seeder
             'deadline_at' => now()->addDays(2)->setHour(17)->setMinute(0),
             'reminder_days_before' => 2,
             'is_public' => false,
-            'public_token' => 'note-essay-' . Str::random(12),
+            'public_token' => 'note-essay-'.Str::random(12),
             'content_json' => json_encode([
                 'html' => '<h2>Introduction</h2><p>This critical essay examines the copyright controversies surrounding large multimodal models and the economic displacement of junior digital artists.</p><h3>Key Thesis</h3><p>Generative AI does not replace creativity; it transforms the creator from an artisan into a semantic art director.</p>',
                 'checklist' => [
@@ -201,7 +200,7 @@ class DatabaseSeeder extends Seeder
             'deadline_at' => now()->addDays(7)->setHour(20)->setMinute(0),
             'reminder_days_before' => 1,
             'is_public' => false,
-            'public_token' => 'note-spec-' . Str::random(12),
+            'public_token' => 'note-spec-'.Str::random(12),
             'content_json' => json_encode([
                 'html' => '<h2>Kebutuhan Integrasi Midtrans</h2><p>Sistem harus mendukung snap token, webhook settlement notifikasi, serta auto-cancel transaksi kadaluarsa setelah 24 jam.</p>',
                 'checklist' => [

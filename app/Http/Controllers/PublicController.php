@@ -37,7 +37,7 @@ class PublicController extends Controller
             $selectedNote = Note::with(['attachments', 'group'])->find($selectedNoteId);
         }
 
-        if (!$selectedNote) {
+        if (! $selectedNote) {
             foreach ($groups as $grp) {
                 if ($grp->notes->isNotEmpty()) {
                     $selectedNote = $grp->notes->first();

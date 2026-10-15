@@ -17,6 +17,7 @@ class SystemSetting extends Model
     {
         return Cache::remember("sys_setting_{$key}", 3600, function () use ($key, $default) {
             $setting = static::where('key', $key)->first();
+
             return $setting ? $setting->value : $default;
         });
     }
@@ -24,7 +25,7 @@ class SystemSetting extends Model
     public static function set(string $key, $value, ?string $description = null): self
     {
         Cache::forget("sys_setting_{$key}");
-        Cache::forget("all_sys_settings");
+        Cache::forget('all_sys_settings');
 
         return static::updateOrCreate(
             ['key' => $key],

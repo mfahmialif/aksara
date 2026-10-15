@@ -99,10 +99,11 @@ class AdminDashboardController extends Controller
     public function toggleUserStatus($id)
     {
         $user = User::findOrFail($id);
-        $user->is_active = !$user->is_active;
+        $user->is_active = ! $user->is_active;
         $user->save();
 
         $status = $user->is_active ? 'diaktifkan' : 'dinonaktifkan';
+
         return back()->with('success', "Status akun {$user->name} berhasil {$status}.");
     }
 

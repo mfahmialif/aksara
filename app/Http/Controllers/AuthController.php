@@ -36,7 +36,7 @@ class AuthController extends Controller
 
             if ($user) {
                 // If user is deactivated by admin
-                if (!$user->is_active) {
+                if (! $user->is_active) {
                     return redirect()->route('welcome')->with('error', 'Akun Anda dinonaktifkan oleh Administrator.');
                 }
 
@@ -57,9 +57,9 @@ class AuthController extends Controller
 
             Auth::login($user, true);
 
-            return redirect()->intended(route('apps.index'))->with('success', 'Selamat datang, ' . $user->name . '!');
+            return redirect()->intended(route('apps.index'))->with('success', 'Selamat datang, '.$user->name.'!');
         } catch (\Throwable $e) {
-            return redirect()->route('welcome')->with('error', 'Gagal login via Google: ' . $e->getMessage());
+            return redirect()->route('welcome')->with('error', 'Gagal login via Google: '.$e->getMessage());
         }
     }
 
@@ -74,13 +74,13 @@ class AuthController extends Controller
 
         $user = User::findOrFail($request->user_id);
 
-        if (!$user->is_active) {
+        if (! $user->is_active) {
             return back()->with('error', 'Akun pengguna ini sedang dinonaktifkan.');
         }
 
         Auth::login($user, true);
 
-        return redirect()->route('apps.index')->with('success', 'Berhasil masuk sebagai demo: ' . $user->name);
+        return redirect()->route('apps.index')->with('success', 'Berhasil masuk sebagai demo: '.$user->name);
     }
 
     /**

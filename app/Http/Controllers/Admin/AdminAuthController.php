@@ -35,6 +35,7 @@ class AdminAuthController extends Controller
 
         if (Auth::guard('admin')->attempt($attemptData, $request->boolean('remember'))) {
             $request->session()->regenerate();
+
             return redirect()->route('admin.dashboard')->with('success', 'Selamat datang di Panel Admin Internal.');
         }
 

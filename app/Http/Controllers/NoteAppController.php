@@ -29,7 +29,7 @@ class NoteAppController extends Controller
         $sharedApps = NoteApp::where('owner_id', '!=', $user->id)
             ->whereHas('collaborators', function ($query) use ($user) {
                 $query->where('user_id', $user->id)
-                      ->orWhere('invited_email', $user->email);
+                    ->orWhere('invited_email', $user->email);
             })
             ->with(['owner', 'groups.notes'])
             ->withCount(['groups'])
@@ -38,12 +38,12 @@ class NoteAppController extends Controller
 
         // Standalone shared notes (collaborator on note level ONLY)
         $standaloneSharedNotes = Note::whereHas('collaborators', function ($query) use ($user) {
-                $query->where('user_id', $user->id)
-                      ->orWhere('invited_email', $user->email);
-            })
+            $query->where('user_id', $user->id)
+                ->orWhere('invited_email', $user->email);
+        })
             ->whereDoesntHave('group.app.collaborators', function ($query) use ($user) {
                 $query->where('user_id', $user->id)
-                      ->orWhere('invited_email', $user->email);
+                    ->orWhere('invited_email', $user->email);
             })
             ->whereHas('group.app', function ($query) use ($user) {
                 $query->where('owner_id', '!=', $user->id);
@@ -75,7 +75,7 @@ class NoteAppController extends Controller
             'icon' => $validated['icon'] ?? 'Notebook',
             'description' => $validated['description'] ?? null,
             'is_public' => $validated['is_public'] ?? false,
-            'public_token' => 'app-' . Str::random(24),
+            'public_token' => 'app-'.Str::random(24),
         ]);
 
         // Create default group
@@ -85,7 +85,7 @@ class NoteAppController extends Controller
             'sort_order' => 1,
         ]);
 
-        return redirect()->route('apps.show', $app->id)->with('success', 'Aplikasi Catatan "' . $app->name . '" berhasil dibuat!');
+        return redirect()->route('apps.show', $app->id)->with('success', 'Aplikasi Catatan "'.$app->name.'" berhasil dibuat!');
     }
 
     public function show($id, Request $request)
@@ -93,7 +93,7 @@ class NoteAppController extends Controller
         $user = Auth::user();
         $app = NoteApp::with(['owner', 'collaborators.user'])->findOrFail($id);
 
-        if (!$app->canUserView($user)) {
+        if (! $app->canUserView($user)) {
             abort(403, 'Anda tidak memiliki hak akses ke Aplikasi Catatan ini.');
         }
 
@@ -113,7 +113,7 @@ class NoteAppController extends Controller
             $selectedNote = Note::with(['attachments', 'collaborators.user', 'group'])->find($selectedNoteId);
         }
 
-        if (!$selectedNote) {
+        if (! $selectedNote) {
             // Find first available note in first group with notes
             foreach ($groups as $grp) {
                 if ($grp->notes->isNotEmpty()) {
@@ -140,7 +140,7 @@ class NoteAppController extends Controller
         $user = Auth::user();
         $app = NoteApp::findOrFail($id);
 
-        if (!$app->canUserEdit($user)) {
+        if (! $app->canUserEdit($user)) {
             abort(403, 'Anda tidak memiliki izin mengedit Aplikasi ini.');
         }
 
@@ -153,7 +153,7 @@ class NoteAppController extends Controller
         ]);
 
         if (empty($app->public_token)) {
-            $validated['public_token'] = 'app-' . Str::random(24);
+            $validated['public_token'] = 'app-'.Str::random(24);
         }
 
         $app->update($validated);
@@ -173,7 +173,7 @@ class NoteAppController extends Controller
         $name = $app->name;
         $app->delete();
 
-        return redirect()->route('apps.index')->with('success', 'Aplikasi "' . $name . '" telah dihapus.');
+        return redirect()->route('apps.index')->with('success', 'Aplikasi "'.$name.'" telah dihapus.');
     }
 
     public function addCollaborator($id, Request $request)
@@ -208,7 +208,7 @@ class NoteAppController extends Controller
             ]
         );
 
-        return back()->with('success', 'Kolaborator ' . $validated['email'] . ' berhasil ditambahkan!');
+        return back()->with('success', 'Kolaborator '.$validated['email'].' berhasil ditambahkan!');
     }
 
     public function removeCollaborator($id, $collabId)
