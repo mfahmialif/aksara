@@ -1,23 +1,15 @@
 import React from 'react';
-import { Head, Link, router } from '@inertiajs/react';
-import { User } from '@/types';
+import { Head } from '@inertiajs/react';
 import Navbar from '@/Components/Navbar';
 import NeoButton from '@/Components/UI/NeoButton';
 import NeoCard from '@/Components/UI/NeoCard';
 import { NeoBadge } from '@/Components/UI/NeoInput';
 import {
-    BookOpen, CheckSquare, PenTool, Share2, Shield, Sparkles,
-    Calendar, ArrowRight, FileUp, Users, CheckCircle2, Lock
+    BookOpen, CheckSquare, PenTool, Sparkles,
+    ArrowRight, Users
 } from 'lucide-react';
 
-interface WelcomeProps {
-    demo_users: User[];
-}
-
-export default function Welcome({ demo_users = [] }: WelcomeProps) {
-    const handleDevLogin = (userId: number) => {
-        router.post('/auth/dev-login', { user_id: userId });
-    };
+export default function Welcome() {
 
     return (
         <div className="min-h-screen bg-[#FFFDF8] flex flex-col font-sans">
@@ -56,7 +48,7 @@ export default function Welcome({ demo_users = [] }: WelcomeProps) {
                         </p>
 
                         {/* Primary Single CTA Button for Google OAuth */}
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
                             <a href="/auth/google/redirect" className="w-full sm:w-auto">
                                 <NeoButton variant="yellow" size="lg" className="w-full sm:w-auto text-base sm:text-lg">
                                     <svg className="w-5 h-5 mr-1" viewBox="0 0 24 24">
@@ -81,35 +73,7 @@ export default function Welcome({ demo_users = [] }: WelcomeProps) {
                                     <ArrowRight className="w-5 h-5 ml-1" />
                                 </NeoButton>
                             </a>
-                            <Link href="/admin/login" className="w-full sm:w-auto">
-                                <NeoButton variant="white" size="lg" className="w-full sm:w-auto text-sm sm:text-base">
-                                    <Shield className="w-4 h-4 mr-1 text-black" />
-                                    Portal Admin Internal
-                                </NeoButton>
-                            </Link>
                         </div>
-
-                        {/* Local Dev / Demo Switcher for fast testing without Google credentials */}
-                        {demo_users.length > 0 && (
-                            <div className="p-4 bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-xl mx-auto">
-                                <p className="text-xs font-black uppercase text-neutral-700 tracking-wider mb-2 font-heading">
-                                    Demo Mode (Coba Langsung Tanpa Akun Google):
-                                </p>
-                                <div className="flex flex-wrap justify-center gap-2">
-                                    {demo_users.map((u) => (
-                                        <button
-                                            key={u.id}
-                                            type="button"
-                                            onClick={() => handleDevLogin(u.id)}
-                                            className="px-3 py-1.5 bg-[#FFFDF8] hover:bg-[#FFDC58] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-xs font-bold transition-all active:translate-x-0.5 active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
-                                        >
-                                            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                                            {u.name} ({u.email.split('@')[0]})
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </section>
 

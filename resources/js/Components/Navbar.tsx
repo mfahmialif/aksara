@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import NeoButton from './UI/NeoButton';
-import { BookOpen, LogOut, Settings, ShieldAlert, Sparkles, User as UserIcon } from 'lucide-react';
+import { BookOpen, LogOut, Settings, Sparkles, User as UserIcon } from 'lucide-react';
 import DebouncedPrefetchLink from './DebouncedPrefetchLink';
 
 export default function Navbar() {
@@ -87,15 +87,6 @@ export default function Navbar() {
                                                 Preferensi Pengingat
                                             </Link>
 
-                                            <Link
-                                                href="/admin/login"
-                                                onClick={() => setDropdownOpen(false)}
-                                                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-black hover:bg-[#69D2E7] transition-colors"
-                                            >
-                                                <ShieldAlert className="w-4 h-4" />
-                                                Panel Admin
-                                            </Link>
-
                                             <div className="border-t-2 border-black my-1" />
 
                                             <button
@@ -112,11 +103,6 @@ export default function Navbar() {
                             </div>
                         ) : (
                             <div className="flex items-center gap-3">
-                                <Link href="/admin/login">
-                                    <NeoButton variant="white" size="sm">
-                                        Admin
-                                    </NeoButton>
-                                </Link>
                                 <a href="/auth/google/redirect">
                                     <NeoButton variant="yellow" size="sm">
                                         <Sparkles className="w-4 h-4" />

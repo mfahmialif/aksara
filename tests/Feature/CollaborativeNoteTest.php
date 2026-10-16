@@ -175,4 +175,43 @@ class CollaborativeNoteTest extends TestCase
         ]);
         $validResponse->assertSessionHas('success');
     }
+
+    /**
+     * Test 6: Google OAuth Redirect and Simulated Consent Flow
+     */
+    public function test_google_oauth_redirect_and_consent_login(): void
+    {
+        // 1. Redirect to Google without keys routes to consent screen
+        $redirectResponse = $this->get('/auth/google/redirect');
+        $redirectResponse->assertRedirect(route('auth.google.consent'));
+
+        // 2. Consent page renders
+        $consentResponse = $this->get('/auth/google/consent');
+        $consentResponse->assertStatus(200);
+
+        // 3. User selects an existing account to log in
+        $existingUser = User::first();
+        $loginResponse = $this->post('/auth/google/consent', [
+            'user_id' => $existingUser->id,
+        ]);
+        $loginResponse->assertRedirect(route('apps.index'));
+        $this->assertAuthenticatedAs($existingUser, 'web');
+
+        // Logout
+        $this->post('/logout');
+        $this->assertGuest('web');
+
+        // 4. User logs in with a new custom Google email
+        $newLoginResponse = $this->post('/auth/google/consent', [
+            'name' => 'Fauzi Rahmat',
+            'email' => 'fauzi@example.com',
+        ]);
+        $newLoginResponse->assertRedirect(route('apps.index'));
+        $this->assertAuthenticated('web');
+        $this->assertDatabaseHas('users', ['email' => 'fauzi@example.com']);
+
+        // 5. Direct admin login URL remains valid
+        $adminLoginResponse = $this->get('/admin/login');
+        $adminLoginResponse->assertStatus(200);
+    }
 }
