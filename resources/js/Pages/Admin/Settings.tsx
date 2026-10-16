@@ -49,7 +49,7 @@ export default function Settings({ settings }: SettingsProps) {
             <Head title="Pengaturan Batasan File (Admin)" />
             <AdminNavbar />
 
-            <main className="max-w-4xl mx-auto px-4 py-8 flex-1 w-full space-y-6">
+            <main className="max-w-4xl mx-auto px-4 pt-6 pb-24 sm:py-8 flex-1 w-full space-y-6">
                 <div className="pb-4 border-b-2 border-black">
                     <div className="flex items-center gap-2 mb-1">
                         <NeoBadge variant="coral">Kebijakan Dinamis</NeoBadge>

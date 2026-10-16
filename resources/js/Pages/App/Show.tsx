@@ -289,7 +289,7 @@ export default function AppShow({
             </div>
 
             {/* Main 3-Column Layout */}
-            <main className="flex-1 max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            <main className="flex-1 max-w-7xl mx-auto w-full p-4 pb-28 md:pb-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                 {/* ================= COLUMN 1: GROUPS (Level 2) ================= */}
                 <div className={`lg:col-span-3 space-y-4 ${mobileTab !== 'groups' ? 'hidden lg:block' : 'block'}`}>
                     <div className="border-2 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">

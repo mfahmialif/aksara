@@ -40,7 +40,7 @@ export default function Preferences({ user }: PreferencesProps) {
             <Head title="Pengaturan & Preferensi Member" />
             <Navbar />
 
-            <main className="max-w-3xl mx-auto px-4 py-10 flex-1 w-full">
+            <main className="max-w-3xl mx-auto px-4 pt-6 pb-24 md:py-10 flex-1 w-full">
                 <div className="mb-8 pb-4 border-b-2 border-black">
                     <div className="flex items-center gap-2 mb-2">
                         <NeoBadge variant="purple">Pengaturan Global</NeoBadge>

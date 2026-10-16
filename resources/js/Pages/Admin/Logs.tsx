@@ -79,7 +79,7 @@ export default function Logs({ logs, stats, filters }: LogsProps) {
             <Head title="Log Aktivitas Pro - Admin" />
             <AdminNavbar />
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 sm:py-8 flex-1 w-full">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 pb-4 border-b-2 border-black">
                     <div>

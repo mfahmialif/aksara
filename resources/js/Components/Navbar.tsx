@@ -7,6 +7,7 @@ import {
     CheckCircle2, AlertTriangle, X, Bell, Check, Archive, Clock, ExternalLink
 } from 'lucide-react';
 import DebouncedPrefetchLink from './DebouncedPrefetchLink';
+import MobileBottomNav from './MobileBottomNav';
 
 export default function Navbar() {
     const { auth, flash, notifications_summary } = usePage<PageProps>().props;
@@ -50,7 +51,8 @@ export default function Navbar() {
     };
 
     return (
-        <header className="sticky top-0 z-40 bg-[#FFFDF8] border-b-2 border-black">
+        <>
+            <header className="sticky top-0 z-40 bg-[#FFFDF8] border-b-2 border-black">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     {/* Brand */}
@@ -367,6 +369,8 @@ export default function Navbar() {
                     </div>
                 </div>
             )}
-        </header>
+            </header>
+            <MobileBottomNav />
+        </>
     );
 }
