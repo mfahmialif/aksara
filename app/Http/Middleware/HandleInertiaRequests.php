@@ -58,6 +58,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
+                'info' => $request->session()->get('info'),
             ],
             'notifications_summary' => $request->user('web') ? [
                 'unread_count' => AppNotification::where('user_id', $request->user('web')->id)

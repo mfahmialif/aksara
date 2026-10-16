@@ -12,7 +12,7 @@ import CreateAdminModal from './components/CreateAdminModal';
 export default function UsersManagement({ members = [], admins = [] }: UsersPageProps) {
     const [createAdminModal, setCreateAdminModal] = useState(false);
 
-    const handleToggleMember = (userId: number) => {
+    const handleToggleMember = (userId: string) => {
         router.post(`/admin/users/${userId}/toggle-status`, {}, { preserveScroll: true });
     };
 

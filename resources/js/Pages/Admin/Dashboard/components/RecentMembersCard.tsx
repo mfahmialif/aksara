@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
 import { User } from '@/types';
 import { NeoBadge } from '@/Components/UI/NeoInput';
 
@@ -14,9 +14,9 @@ export default function RecentMembersCard({ members = [] }: RecentMembersCardPro
                 <h3 className="font-heading font-black text-sm uppercase tracking-wide">
                     Member Terbaru
                 </h3>
-                <Link href="/admin/users" className="text-xs font-bold text-neutral-700 hover:underline">
+                <DebouncedPrefetchLink href="/admin/users" className="text-xs font-bold text-neutral-700 hover:underline">
                     Kelola Pengguna
-                </Link>
+                </DebouncedPrefetchLink>
             </div>
 
             {members.length === 0 ? (

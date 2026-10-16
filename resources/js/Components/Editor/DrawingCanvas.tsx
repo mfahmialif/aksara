@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { PenTool, Eraser, RotateCcw, RotateCw, Trash2, Download } from 'lucide-react';
+import { PenTool, Eraser, Hand, RotateCcw, RotateCw, Trash2, Download, Plus } from 'lucide-react';
 
 interface Point {
     x: number;
@@ -15,12 +15,14 @@ interface Stroke {
 
 interface DrawingCanvasProps {
     value?: string | null; // JSON string of { strokes: Stroke[], preview: string }
+    drawingData?: string | null;
     onChange: (value: string | null) => void;
     editable?: boolean;
 }
 
 export default function DrawingCanvas({
     value,
+    drawingData,
     onChange,
     editable = true,
 }: DrawingCanvasProps) {
@@ -30,9 +32,20 @@ export default function DrawingCanvas({
     const [strokes, setStrokes] = useState<Stroke[]>([]);
     const [redoStack, setRedoStack] = useState<Stroke[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
-    const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+    const [tool, setTool] = useState<'pen' | 'eraser' | 'pan'>('pen');
     const [color, setColor] = useState('#000000');
     const [strokeWidth, setStrokeWidth] = useState(4);
+    const [canvasWidth, setCanvasWidth] = useState<number>(1200);
+    const [canvasHeight, setCanvasHeight] = useState<number>(800);
+
+    // Pan state
+    const isPanningRef = useRef(false);
+    const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number }>({
+        x: 0,
+        y: 0,
+        scrollLeft: 0,
+        scrollTop: 0,
+    });
 
     const colors = [
         '#000000', // Black
@@ -46,21 +59,42 @@ export default function DrawingCanvas({
 
     const widths = [2, 4, 8, 14];
 
-    // Load initial data
+    // Load initial data and calculate needed canvas dimensions dynamically (both X and Y)
     useEffect(() => {
-        if (value) {
+        const dataToLoad = value !== undefined ? value : drawingData;
+        if (dataToLoad) {
             try {
-                const parsed = JSON.parse(value);
+                const parsed = JSON.parse(dataToLoad);
+                let loadedStrokes: Stroke[] = [];
                 if (Array.isArray(parsed.strokes)) {
-                    setStrokes(parsed.strokes);
+                    loadedStrokes = parsed.strokes;
                 } else if (Array.isArray(parsed.lines)) {
-                    setStrokes(parsed.lines);
+                    loadedStrokes = parsed.lines;
                 }
+                setStrokes(loadedStrokes);
+
+                // Check max X and Y to automatically scale canvas width & height
+                let maxX = 0;
+                let maxY = 0;
+                loadedStrokes.forEach((s) => {
+                    s.points.forEach((p) => {
+                        if (p.x > maxX) maxX = p.x;
+                        if (p.y > maxY) maxY = p.y;
+                    });
+                });
+                const containerW = containerRef.current?.clientWidth || 800;
+                setCanvasWidth(Math.max(1200, containerW, Math.ceil(maxX + 350)));
+                setCanvasHeight(Math.max(800, Math.ceil(maxY + 350)));
             } catch {
                 // ignore parse error
             }
+        } else {
+            setStrokes([]);
+            const containerW = containerRef.current?.clientWidth || 800;
+            setCanvasWidth(Math.max(1200, containerW));
+            setCanvasHeight(800);
         }
-    }, [value]);
+    }, [value, drawingData]);
 
     // Redraw canvas whenever strokes change
     const redrawCanvas = useCallback(() => {
@@ -118,25 +152,16 @@ export default function DrawingCanvas({
         });
     }, [strokes]);
 
-    // Adjust canvas resolution to parent width
+    // Sync canvas resolution whenever canvasWidth or canvasHeight changes
     useEffect(() => {
-        const handleResize = () => {
-            const canvas = canvasRef.current;
-            const container = containerRef.current;
-            if (!canvas || !container) return;
-
-            const rect = container.getBoundingClientRect();
-            if (rect.width > 0 && (canvas.width !== rect.width || canvas.height !== 380)) {
-                canvas.width = rect.width;
-                canvas.height = 380;
-                redrawCanvas();
-            }
-        };
-
-        handleResize();
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [redrawCanvas]);
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            redrawCanvas();
+        }
+    }, [canvasWidth, canvasHeight, redrawCanvas]);
 
     useEffect(() => {
         redrawCanvas();
@@ -146,9 +171,11 @@ export default function DrawingCanvas({
         const canvas = canvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
+        const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+        const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
         return {
-            x: clientX - rect.left,
-            y: clientY - rect.top,
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY,
         };
     };
 
@@ -169,6 +196,16 @@ export default function DrawingCanvas({
     const drawMove = (clientX: number, clientY: number) => {
         if (!isDrawing || !editable) return;
         const pt = getCanvasPoint(clientX, clientY);
+
+        // Auto-expand canvas width horizontally (rightwards)
+        if (pt.x > canvasWidth - 100) {
+            setCanvasWidth((prev) => prev + 400);
+        }
+
+        // Auto-expand canvas height downwards
+        if (pt.y > canvasHeight - 100) {
+            setCanvasHeight((prev) => prev + 400);
+        }
 
         setStrokes((prev) => {
             if (prev.length === 0) return prev;
@@ -193,6 +230,29 @@ export default function DrawingCanvas({
                 onChange(JSON.stringify({ strokes, preview: dataUrl }));
             }
         }, 50);
+    };
+
+    // Pan methods (supports both mouse and touch)
+    const startPan = (clientX: number, clientY: number) => {
+        isPanningRef.current = true;
+        panStartRef.current = {
+            x: clientX,
+            y: clientY,
+            scrollLeft: containerRef.current?.scrollLeft || 0,
+            scrollTop: containerRef.current?.scrollTop || 0,
+        };
+    };
+
+    const panMove = (clientX: number, clientY: number) => {
+        if (!isPanningRef.current || !containerRef.current) return;
+        const dx = clientX - panStartRef.current.x;
+        const dy = clientY - panStartRef.current.y;
+        containerRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+        containerRef.current.scrollTop = panStartRef.current.scrollTop - dy;
+    };
+
+    const endPan = () => {
+        isPanningRef.current = false;
     };
 
     const handleUndo = () => {
@@ -243,47 +303,60 @@ export default function DrawingCanvas({
     };
 
     return (
-        <div className="border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        <div className="border-2 border-black bg-white shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-full overflow-hidden">
             {/* Toolbar */}
             {editable && (
-                <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-[#F4F0EA] border-b-2 border-black select-none">
-                    <div className="flex items-center gap-1.5">
-                        {/* Tool selection */}
-                        <button
-                            type="button"
-                            onClick={() => setTool('pen')}
-                            className={`p-1.5 border border-black transition-all ${
-                                tool === 'pen' ? 'bg-[#FFDC58] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white hover:bg-neutral-100'
-                            }`}
-                            title="Pena / Kuas"
-                        >
-                            <PenTool className="w-4 h-4 text-black" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setTool('eraser')}
-                            className={`p-1.5 border border-black transition-all ${
-                                tool === 'eraser' ? 'bg-[#FF6B6B] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white hover:bg-neutral-100'
-                            }`}
-                            title="Penghapus"
-                        >
-                            <Eraser className="w-4 h-4 text-black" />
-                        </button>
+                <div className="p-2 bg-[#F4F0EA] border-b-2 border-black select-none space-y-2">
+                    {/* Row 1: Tool, Palette, and Stroke Widths */}
+                    <div className="flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                        <div className="flex items-center gap-1 shrink-0">
+                            {/* Tool selection: Pen, Eraser, Pan */}
+                            <button
+                                type="button"
+                                onClick={() => setTool('pen')}
+                                className={`p-1.5 border border-black transition-all cursor-pointer ${
+                                    tool === 'pen' ? 'bg-[#FFDC58] shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] font-bold' : 'bg-white hover:bg-neutral-100'
+                                }`}
+                                title="Pena / Kuas"
+                            >
+                                <PenTool className="w-3.5 h-3.5 text-black" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTool('eraser')}
+                                className={`p-1.5 border border-black transition-all cursor-pointer ${
+                                    tool === 'eraser' ? 'bg-[#FF6B6B] shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] font-bold' : 'bg-white hover:bg-neutral-100'
+                                }`}
+                                title="Penghapus"
+                            >
+                                <Eraser className="w-3.5 h-3.5 text-black" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTool('pan')}
+                                className={`p-1.5 border border-black transition-all cursor-pointer ${
+                                    tool === 'pan' ? 'bg-[#69D2E7] shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] font-bold' : 'bg-white hover:bg-neutral-100'
+                                }`}
+                                title="Geser / Navigasi Bebas Kanvas (Pan)"
+                            >
+                                <Hand className="w-3.5 h-3.5 text-black" />
+                            </button>
+                        </div>
 
-                        <div className="w-[1px] h-6 bg-black mx-1" />
+                        <div className="w-[1px] h-5 bg-black shrink-0" />
 
                         {/* Palette */}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
                             {colors.map((c) => (
                                 <button
                                     key={c}
                                     type="button"
                                     onClick={() => {
                                         setColor(c);
-                                        setTool('pen');
+                                        if (tool === 'pan') setTool('pen');
                                     }}
-                                    className={`w-5 h-5 border border-black transition-transform ${
-                                        color === c && tool === 'pen' ? 'scale-125 ring-2 ring-black' : 'hover:scale-110'
+                                    className={`w-4 h-4 sm:w-5 sm:h-5 border border-black transition-transform shrink-0 ${
+                                        color === c && tool === 'pen' ? 'scale-110 ring-2 ring-black' : 'hover:scale-105'
                                     }`}
                                     style={{ backgroundColor: c }}
                                     title={c}
@@ -291,16 +364,16 @@ export default function DrawingCanvas({
                             ))}
                         </div>
 
-                        <div className="w-[1px] h-6 bg-black mx-1" />
+                        <div className="w-[1px] h-5 bg-black shrink-0" />
 
                         {/* Stroke widths */}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0">
                             {widths.map((w) => (
                                 <button
                                     key={w}
                                     type="button"
                                     onClick={() => setStrokeWidth(w)}
-                                    className={`px-2 py-0.5 border border-black text-xs font-bold transition-all ${
+                                    className={`px-1.5 py-0.5 border border-black text-[11px] font-bold transition-all shrink-0 ${
                                         strokeWidth === w ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-100'
                                     }`}
                                 >
@@ -310,76 +383,188 @@ export default function DrawingCanvas({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                        <button
-                            type="button"
-                            onClick={handleUndo}
-                            disabled={strokes.length === 0}
-                            className="p-1.5 border border-black bg-white hover:bg-neutral-100 disabled:opacity-40"
-                            title="Undo"
-                        >
-                            <RotateCcw className="w-4 h-4" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleRedo}
-                            disabled={redoStack.length === 0}
-                            className="p-1.5 border border-black bg-white hover:bg-neutral-100 disabled:opacity-40"
-                            title="Redo"
-                        >
-                            <RotateCw className="w-4 h-4" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleClear}
-                            className="p-1.5 border border-black bg-white hover:bg-rose-100 text-rose-600"
-                            title="Hapus Kanvas"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={downloadImage}
-                            className="p-1.5 border border-black bg-[#7FBC8C] hover:bg-[#92cca0]"
-                            title="Unduh PNG"
-                        >
-                            <Download className="w-4 h-4 text-black" />
-                        </button>
+                    {/* Row 2: Action buttons (Undo, Redo, Clear, Download) */}
+                    <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-neutral-300">
+                        <span className="text-[10px] font-black uppercase text-neutral-600">
+                            {tool === 'pan' ? 'Mode Geser Kanvas Aktif' : tool === 'eraser' ? 'Mode Penghapus' : 'Mode Gambar'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={handleUndo}
+                                disabled={strokes.length === 0}
+                                className="p-1 sm:p-1.5 border border-black bg-white hover:bg-neutral-100 disabled:opacity-40 cursor-pointer"
+                                title="Undo"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleRedo}
+                                disabled={redoStack.length === 0}
+                                className="p-1 sm:p-1.5 border border-black bg-white hover:bg-neutral-100 disabled:opacity-40 cursor-pointer"
+                                title="Redo"
+                            >
+                                <RotateCw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleClear}
+                                className="p-1 sm:p-1.5 border border-black bg-white hover:bg-rose-100 text-rose-600 cursor-pointer"
+                                title="Hapus Kanvas"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={downloadImage}
+                                className="p-1 sm:p-1.5 border border-black bg-[#7FBC8C] hover:bg-[#92cca0] cursor-pointer"
+                                title="Unduh PNG"
+                            >
+                                <Download className="w-3.5 h-3.5 text-black" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Canvas Container with touch lock */}
+            {/* Canvas Container with dynamic 2D horizontal & vertical scrolling */}
             <div
                 ref={containerRef}
-                className="w-full relative overflow-hidden bg-white"
-                style={{ touchAction: 'none' }} // Prevents mobile browser scrolling while drawing!
+                className="w-full relative overflow-auto max-h-[58vh] bg-[#FFFDF8] border-b-2 border-black overscroll-contain select-none"
+                style={{ touchAction: tool === 'pan' ? 'pan-x pan-y' : 'none' }}
+                onMouseDown={(e) => {
+                    if (tool === 'pan') {
+                        startPan(e.clientX, e.clientY);
+                    }
+                }}
+                onMouseMove={(e) => {
+                    if (tool === 'pan') {
+                        panMove(e.clientX, e.clientY);
+                    }
+                }}
+                onMouseUp={() => {
+                    if (tool === 'pan') {
+                        endPan();
+                    }
+                }}
             >
                 <canvas
                     ref={canvasRef}
-                    height={380}
-                    className={`w-full block ${editable ? 'cursor-crosshair' : 'cursor-default'}`}
-                    onMouseDown={(e) => startDrawing(e.clientX, e.clientY)}
-                    onMouseMove={(e) => drawMove(e.clientX, e.clientY)}
-                    onMouseUp={endDrawing}
-                    onMouseLeave={endDrawing}
+                    width={canvasWidth}
+                    height={canvasHeight}
+                    style={{
+                        width: `${canvasWidth}px`,
+                        height: `${canvasHeight}px`,
+                        minWidth: `${canvasWidth}px`,
+                        minHeight: `${canvasHeight}px`,
+                    }}
+                    className={`block ${
+                        tool === 'pan'
+                            ? 'cursor-grab active:cursor-grabbing'
+                            : editable
+                            ? 'cursor-crosshair'
+                            : 'cursor-default'
+                    }`}
+                    onMouseDown={(e) => {
+                        if (tool === 'pan') {
+                            startPan(e.clientX, e.clientY);
+                        } else {
+                            startDrawing(e.clientX, e.clientY);
+                        }
+                    }}
+                    onMouseMove={(e) => {
+                        if (tool === 'pan') {
+                            panMove(e.clientX, e.clientY);
+                        } else {
+                            drawMove(e.clientX, e.clientY);
+                        }
+                    }}
+                    onMouseUp={() => {
+                        if (tool === 'pan') {
+                            endPan();
+                        } else {
+                            endDrawing();
+                        }
+                    }}
+                    onMouseLeave={() => {
+                        if (tool === 'pan') {
+                            endPan();
+                        } else {
+                            endDrawing();
+                        }
+                    }}
                     onTouchStart={(e) => {
-                        if (e.touches.length === 1) {
+                        if (tool === 'pan' || e.touches.length >= 2) {
+                            startPan(e.touches[0].clientX, e.touches[0].clientY);
+                        } else if (e.touches.length === 1 && tool !== 'pan') {
                             e.preventDefault();
                             startDrawing(e.touches[0].clientX, e.touches[0].clientY);
                         }
                     }}
                     onTouchMove={(e) => {
-                        if (e.touches.length === 1) {
+                        if (isPanningRef.current) {
+                            panMove(e.touches[0].clientX, e.touches[0].clientY);
+                        } else if (e.touches.length === 1 && tool !== 'pan') {
                             e.preventDefault();
                             drawMove(e.touches[0].clientX, e.touches[0].clientY);
                         }
                     }}
                     onTouchEnd={(e) => {
-                        e.preventDefault();
-                        endDrawing();
+                        if (isPanningRef.current) {
+                            endPan();
+                        } else if (tool !== 'pan') {
+                            e.preventDefault();
+                            endDrawing();
+                        }
                     }}
                 />
+            </div>
+
+            {/* Dynamic 2D Canvas Expansion Bar (Free horizontal & vertical expansion) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-[#F4F0EA] select-none text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold text-neutral-600">
+                        Ukuran Kanvas: <span className="font-black text-black">{canvasWidth}px × {canvasHeight}px</span>
+                    </span>
+                    <span className="text-[10px] text-neutral-500 hidden sm:inline">
+                        (Bebas geser ke kanan, kiri, atas, bawah)
+                    </span>
+                </div>
+                {editable && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => setCanvasWidth((prev) => prev + 400)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FFDC58] border border-black font-black uppercase text-[10px] sm:text-[11px] shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
+                            title="Tambah ruang kanvas 400px ke kanan"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            +Kanan (400px)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setCanvasHeight((prev) => prev + 400)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#A388EE] border border-black font-black uppercase text-[10px] sm:text-[11px] shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
+                            title="Tambah ruang kanvas 400px ke bawah"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            +Bawah (400px)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (containerRef.current) {
+                                    containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+                                }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-neutral-100 border border-black font-bold uppercase text-[10px] sm:text-[11px] shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                            title="Kembali ke pojok kiri atas"
+                        >
+                            Ke Awal
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

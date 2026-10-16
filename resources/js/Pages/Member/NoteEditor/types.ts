@@ -6,7 +6,14 @@ export interface NoteEditorProps {
     selected_note: Note | null;
     is_owner: boolean;
     can_edit: boolean;
+    is_public_view?: boolean;
+    is_group_shared_view?: boolean;
+    selected_group?: NoteGroup | null;
+    is_single_note_view?: boolean;
+    is_saved?: boolean;
+    share_item_type?: 'app' | 'group' | 'note';
+    share_item_id?: string;
+    share_public_token?: string;
 }
 
-export type ViewMode = 'explorer' | 'editor';
-export type MobileTab = 'groups' | 'notes' | 'editor';
+export type MobileTab = 'groups' | 'notes';

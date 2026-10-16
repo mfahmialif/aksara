@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import NeoButton from './UI/NeoButton';
+import DebouncedPrefetchLink from './DebouncedPrefetchLink';
 import {
     FolderKanban, Bell, Sliders, User, LogOut,
     ExternalLink, X, ArrowRight, Sparkles
 } from 'lucide-react';
+import { lockBodyScroll, unlockBodyScroll } from '@/utils/modalScrollLock';
 
 export default function MobileBottomNav() {
     const { auth, notifications_summary } = usePage<PageProps>().props;
@@ -13,8 +15,19 @@ export default function MobileBottomNav() {
     const user = auth.user;
     const [accountSheetOpen, setAccountSheetOpen] = useState(false);
 
+    useEffect(() => {
+        if (accountSheetOpen) {
+            lockBodyScroll();
+        }
+        return () => {
+            if (accountSheetOpen) {
+                unlockBodyScroll();
+            }
+        };
+    }, [accountSheetOpen]);
+
     // Only display for logged-in members, NOT on the landing page or public share pages
-    if (!user || url === '/' || url === '' || url.startsWith('/share/')) {
+    if (!user || url === '/' || url === '' || url.startsWith('/share/') || url.startsWith('/s/')) {
         return null;
     }
 
@@ -33,7 +46,7 @@ export default function MobileBottomNav() {
             >
                 <div className="flex items-stretch justify-around h-16">
                     {/* 1. Ruang Kerja */}
-                    <Link
+                    <DebouncedPrefetchLink
                         href="/app"
                         className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 transition-all relative border-r-2 border-black ${
                             isWorkspaceActive
@@ -48,10 +61,10 @@ export default function MobileBottomNav() {
                         {isWorkspaceActive && (
                             <div className="absolute top-0 left-0 right-0 h-1 bg-black" />
                         )}
-                    </Link>
+                    </DebouncedPrefetchLink>
 
                     {/* 2. Notifikasi */}
-                    <Link
+                    <DebouncedPrefetchLink
                         href="/notifications"
                         className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 transition-all relative border-r-2 border-black ${
                             isNotificationsActive
@@ -73,10 +86,10 @@ export default function MobileBottomNav() {
                         {isNotificationsActive && (
                             <div className="absolute top-0 left-0 right-0 h-1 bg-black" />
                         )}
-                    </Link>
+                    </DebouncedPrefetchLink>
 
                     {/* 3. Preferensi */}
-                    <Link
+                    <DebouncedPrefetchLink
                         href="/settings/preferences"
                         className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 transition-all relative border-r-2 border-black ${
                             isPreferencesActive
@@ -91,7 +104,7 @@ export default function MobileBottomNav() {
                         {isPreferencesActive && (
                             <div className="absolute top-0 left-0 right-0 h-1 bg-black" />
                         )}
-                    </Link>
+                    </DebouncedPrefetchLink>
 
                     {/* 4. Akun (Menu Drawer) */}
                     <button
@@ -122,10 +135,10 @@ export default function MobileBottomNav() {
                         onClick={() => setAccountSheetOpen(false)}
                     />
                     <div
-                        className="fixed bottom-0 left-0 right-0 z-50 bg-[#FFFDF8] border-t-3 border-black shadow-[0_-8px_0px_0px_rgba(0,0,0,1)] p-5 pb-8 animate-in slide-in-from-bottom duration-200"
+                        className="fixed bottom-0 left-0 right-0 z-50 bg-[#FFFDF8] rounded-t-[24px] border-t-3 border-x-3 border-black shadow-[0_-8px_0px_0px_rgba(0,0,0,1)] p-5 pb-8 overscroll-contain animate-in slide-in-from-bottom duration-200"
                     >
                         {/* Drag indicator pill */}
-                        <div className="w-12 h-1.5 bg-black mx-auto mb-4" />
+                        <div className="w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-4" />
 
                         {/* User Header */}
                         <div className="flex items-start justify-between pb-4 mb-4 border-b-2 border-black">
@@ -157,7 +170,7 @@ export default function MobileBottomNav() {
 
                         {/* Shortcut Navigation */}
                         <div className="space-y-2 mb-5">
-                            <Link
+                            <DebouncedPrefetchLink
                                 href="/"
                                 onClick={() => setAccountSheetOpen(false)}
                                 className="w-full flex items-center justify-between p-3 bg-white border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-heading font-bold text-xs uppercase hover:bg-[#FFDC58] transition-all"
@@ -167,9 +180,9 @@ export default function MobileBottomNav() {
                                     <span>Halaman Depan (Landing Page)</span>
                                 </div>
                                 <ArrowRight className="w-4 h-4" />
-                            </Link>
+                            </DebouncedPrefetchLink>
 
-                            <Link
+                            <DebouncedPrefetchLink
                                 href="/settings/preferences"
                                 onClick={() => setAccountSheetOpen(false)}
                                 className="w-full flex items-center justify-between p-3 bg-white border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-heading font-bold text-xs uppercase hover:bg-[#A388EE] transition-all"
@@ -179,9 +192,9 @@ export default function MobileBottomNav() {
                                     <span>Pengaturan Preferensi Pengingat</span>
                                 </div>
                                 <ArrowRight className="w-4 h-4" />
-                            </Link>
+                            </DebouncedPrefetchLink>
 
-                            <Link
+                            <DebouncedPrefetchLink
                                 href="/notifications"
                                 onClick={() => setAccountSheetOpen(false)}
                                 className="w-full flex items-center justify-between p-3 bg-white border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-heading font-bold text-xs uppercase hover:bg-[#7FBC8C] transition-all"
@@ -191,7 +204,7 @@ export default function MobileBottomNav() {
                                     <span>Pusat Notifikasi & Pengingat</span>
                                 </div>
                                 <ArrowRight className="w-4 h-4" />
-                            </Link>
+                            </DebouncedPrefetchLink>
                         </div>
 
                         {/* Logout Button */}

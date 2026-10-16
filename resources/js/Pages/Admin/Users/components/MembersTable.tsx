@@ -4,7 +4,7 @@ import { NeoBadge } from '@/Components/UI/NeoInput';
 
 interface MembersTableProps {
     members: (User & { note_apps_count?: number })[];
-    onToggleStatus: (userId: number) => void;
+    onToggleStatus: (userId: string) => void;
 }
 
 export default function MembersTable({ members = [], onToggleStatus }: MembersTableProps) {
@@ -35,7 +35,12 @@ export default function MembersTable({ members = [], onToggleStatus }: MembersTa
                                             <img
                                                 src={member.avatar}
                                                 alt={member.name}
-                                                className="w-7 h-7 border border-black bg-amber-100"
+                                                referrerPolicy="no-referrer"
+                                                crossOrigin="anonymous"
+                                                onError={(e) => {
+                                                    e.currentTarget.style.display = 'none';
+                                                }}
+                                                className="w-7 h-7 border border-black bg-amber-100 object-cover"
                                             />
                                         ) : (
                                             <div className="w-7 h-7 bg-[#A388EE] border border-black flex items-center justify-center font-black">

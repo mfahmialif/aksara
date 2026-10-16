@@ -10,7 +10,7 @@ interface CollaboratorsModalProps {
     isOpen: boolean;
     onClose: () => void;
     level: 'app' | 'note';
-    targetId: number;
+    targetId: string;
     title: string;
     collaborators: Collaborator[];
 }
@@ -50,7 +50,7 @@ export default function CollaboratorsModal({
         });
     };
 
-    const handleRemove = (collabId: number) => {
+    const handleRemove = (collabId: string) => {
         if (!confirm('Hapus kolaborator ini?')) return;
 
         const route = level === 'app'

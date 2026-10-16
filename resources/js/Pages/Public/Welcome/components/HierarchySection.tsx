@@ -2,16 +2,16 @@ import React from 'react';
 
 export default function HierarchySection() {
     return (
-        <section className="py-16 bg-[#FFFDF8]">
+        <section className="py-10 sm:py-16 bg-[#FFFDF8]">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="text-center mb-12">
-                    <h2 className="text-3xl sm:text-4xl font-black font-heading uppercase text-black">
+                <div className="text-center mb-8 sm:mb-12">
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-black font-heading uppercase text-black">
                         Arsitektur Hierarki 3-Tingkat
                     </h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="p-5 bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                    <div className="p-4 sm:p-5 bg-white border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                         <span className="text-xs font-black bg-[#FFDC58] px-2 py-0.5 border border-black mb-3 inline-block">
                             LEVEL 1
                         </span>

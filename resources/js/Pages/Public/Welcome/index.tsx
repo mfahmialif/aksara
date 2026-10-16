@@ -11,7 +11,11 @@ export default function Welcome() {
 
     return (
         <PublicLayout title="Aksara - Catatan & Tugas Kolaboratif">
-            <HeroSection flashError={flash.error} flashSuccess={flash.success} />
+            <HeroSection
+                flashError={flash.error}
+                flashSuccess={flash.success}
+                flashInfo={(flash as any).info}
+            />
             <FeaturesSection />
             <HierarchySection />
         </PublicLayout>

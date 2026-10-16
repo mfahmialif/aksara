@@ -6,10 +6,23 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 use Laravel\Socialite\Facades\Socialite;
 
 class AuthController extends Controller
 {
+    /**
+     * Show dedicated member login page.
+     */
+    public function showLogin(Request $request)
+    {
+        if (Auth::guard('web')->check()) {
+            return redirect()->intended(route('apps.index'));
+        }
+
+        return Inertia::render('Public/Login');
+    }
+
     /**
      * Redirect to Google OAuth provider.
      */
@@ -63,6 +76,12 @@ class AuthController extends Controller
 
             ActivityLogger::log('LOGIN', "Pengguna {$user->name} ({$user->email}) berhasil masuk ke sistem via Google OAuth", $user);
 
+            // Clear any stale intended URL that points to old non-UUID integer IDs
+            $intended = session()->get('url.intended');
+            if ($intended && preg_match('#/(app|notes|groups)/\d+#', $intended)) {
+                session()->forget('url.intended');
+            }
+
             return redirect()->intended(route('apps.index'))->with('success', 'Selamat datang, '.$user->name.'!');
         } catch (\Throwable $e) {
             return redirect()->route('welcome')->with('error', 'Gagal login via Google: '.$e->getMessage());
@@ -88,7 +107,7 @@ class AuthController extends Controller
 
         ActivityLogger::log('LOGIN', "Pengguna {$user->name} ({$user->email}) masuk ke sistem via Demo Login", $user);
 
-        return redirect()->route('apps.index')->with('success', 'Berhasil masuk sebagai demo: '.$user->name);
+        return redirect()->intended(route('apps.index'))->with('success', 'Berhasil masuk sebagai demo: '.$user->name);
     }
 
     /**

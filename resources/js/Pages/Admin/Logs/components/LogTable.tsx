@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
 import { ActivityLog } from '@/types';
 import { PaginatedLogs } from '../types';
 import { Users, Shield, Cpu, Eye, Clock, Monitor } from 'lucide-react';
@@ -122,7 +122,7 @@ export default function LogTable({ logs, onViewDetail }: LogTableProps) {
                     </span>
                     <div className="flex items-center gap-1">
                         {logs.links.map((link, i) => (
-                            <Link
+                            <DebouncedPrefetchLink
                                 key={i}
                                 href={link.url || '#'}
                                 className={`px-2.5 py-1 text-xs font-bold border-2 border-black transition-all ${

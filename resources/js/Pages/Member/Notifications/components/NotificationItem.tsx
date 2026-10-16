@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
 import { AppNotification } from '@/types';
 import NeoCard from '@/Components/UI/NeoCard';
 import { NeoBadge } from '@/Components/UI/NeoInput';
@@ -7,9 +7,9 @@ import { Check, Archive, Trash2, Clock, Users, Bell, ExternalLink } from 'lucide
 
 interface NotificationItemProps {
     notif: AppNotification;
-    onMarkAsRead: (id: number) => void;
-    onArchive: (id: number) => void;
-    onDelete: (id: number) => void;
+    onMarkAsRead: (id: string) => void;
+    onArchive: (id: string) => void;
+    onDelete: (id: string) => void;
 }
 
 export default function NotificationItem({
@@ -92,7 +92,7 @@ export default function NotificationItem({
 
                         {notif.action_url && (
                             <div className="pt-2">
-                                <Link
+                                <DebouncedPrefetchLink
                                     href={notif.action_url}
                                     onClick={() => {
                                         if (isUnread) onMarkAsRead(notif.id);
@@ -101,7 +101,7 @@ export default function NotificationItem({
                                 >
                                     Buka Catatan Terkait
                                     <ExternalLink className="w-3.5 h-3.5" />
-                                </Link>
+                                </DebouncedPrefetchLink>
                             </div>
                         )}
                     </div>

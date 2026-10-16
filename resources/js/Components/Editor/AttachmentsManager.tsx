@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NoteAttachment, SystemSettings } from '@/types';
 import { router } from '@inertiajs/react';
 import {
@@ -6,12 +6,26 @@ import {
     Eye, X, AlertTriangle, FileArchive, Film, File
 } from 'lucide-react';
 import NeoButton from '../UI/NeoButton';
+import { lockBodyScroll, unlockBodyScroll } from '@/utils/modalScrollLock';
 
 interface AttachmentsManagerProps {
-    noteId: number;
+    noteId: string;
     attachments: NoteAttachment[];
-    settings: SystemSettings;
+    settings?: SystemSettings | null;
     editable?: boolean;
+    canEdit?: boolean;
+    onAttachmentsUpdated?: (attachments: NoteAttachment[]) => void;
+}
+
+function getCsrfToken(): string {
+    return (
+        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+        document.cookie
+            .split('; ')
+            .find((row) => row.startsWith('XSRF-TOKEN='))
+            ?.split('=')[1] ||
+        ''
+    );
 }
 
 export default function AttachmentsManager({
@@ -19,33 +33,56 @@ export default function AttachmentsManager({
     attachments = [],
     settings,
     editable = true,
+    canEdit,
+    onAttachmentsUpdated,
 }: AttachmentsManagerProps) {
+    const isEditable = canEdit !== undefined ? canEdit : editable;
+
+    const activeSettings: SystemSettings = {
+        max_file_size_mb: settings?.max_file_size_mb || 10,
+        max_files_per_upload: settings?.max_files_per_upload || 5,
+        allowed_extensions: settings?.allowed_extensions || 'jpg,jpeg,png,webp,gif,pdf,doc,docx,xls,xlsx,zip,txt',
+        blocked_extensions: settings?.blocked_extensions || 'exe,bat,sh,php,js,vbs',
+    };
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [validationError, setValidationError] = useState<string | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     // Lightbox & PDF preview modals
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string } | null>(null);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    useEffect(() => {
+        const isAnyPreviewOpen = Boolean(previewImage || previewPdf);
+        if (isAnyPreviewOpen) {
+            lockBodyScroll();
+        }
+        return () => {
+            if (isAnyPreviewOpen) {
+                unlockBodyScroll();
+            }
+        };
+    }, [previewImage, previewPdf]);
+
+    const uploadFiles = async (files: File[]) => {
         setValidationError(null);
-        const files = Array.from(e.target.files || []);
-        if (files.length === 0) return;
+        if (files.length === 0 || !isEditable) return;
 
         // 1. Dynamic Check: Max files per upload
-        if (files.length > settings.max_files_per_upload) {
-            setValidationError(`Maksimal hanya dapat mengunggah ${settings.max_files_per_upload} file dalam sekali upload.`);
+        if (files.length > activeSettings.max_files_per_upload) {
+            setValidationError(`Maksimal hanya dapat mengunggah ${activeSettings.max_files_per_upload} file dalam sekali upload.`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
-        const maxBytes = settings.max_file_size_mb * 1024 * 1024;
-        const allowed = settings.allowed_extensions
-            ? settings.allowed_extensions.split(',').map((x) => x.trim().toLowerCase())
+        const maxBytes = activeSettings.max_file_size_mb * 1024 * 1024;
+        const allowed = activeSettings.allowed_extensions
+            ? activeSettings.allowed_extensions.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean)
             : [];
-        const blocked = settings.blocked_extensions
-            ? settings.blocked_extensions.split(',').map((x) => x.trim().toLowerCase())
+        const blocked = activeSettings.blocked_extensions
+            ? activeSettings.blocked_extensions.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean)
             : [];
 
         // 2. Dynamic check each file for size, blocked ext, and allowed ext
@@ -61,39 +98,94 @@ export default function AttachmentsManager({
 
             // Check allowed
             if (allowed.length > 0 && !allowed.includes(ext)) {
-                setValidationError(`File "${file.name}" ditolak. Hanya ekstensi berikut yang diizinkan: ${settings.allowed_extensions}`);
+                setValidationError(`File "${file.name}" ditolak. Hanya ekstensi berikut yang diizinkan: ${activeSettings.allowed_extensions}`);
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 return;
             }
 
             // Check size
             if (file.size > maxBytes) {
-                setValidationError(`Ukuran file "${file.name}" (${(file.size / (1024 * 1024)).toFixed(2)} MB) melebihi batas maksimal ${settings.max_file_size_mb} MB.`);
+                setValidationError(`Ukuran file "${file.name}" (${(file.size / (1024 * 1024)).toFixed(2)} MB) melebihi batas maksimal ${activeSettings.max_file_size_mb} MB.`);
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 return;
             }
         }
 
-        // Upload files via Inertia router
         const formData = new FormData();
         files.forEach((f) => formData.append('files[]', f));
 
         setUploading(true);
-        router.post(`/notes/${noteId}/attachments`, formData, {
-            onFinish: () => {
-                setUploading(false);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-            },
-            onError: (err) => {
-                setValidationError(Object.values(err)[0] as string);
-                setUploading(false);
-            },
-        });
+
+        try {
+            const csrfToken = getCsrfToken();
+            const res = await fetch(`/notes/${noteId}/attachments`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.attachments && onAttachmentsUpdated) {
+                    onAttachmentsUpdated(data.attachments);
+                } else {
+                    router.reload({ only: ['groups'] });
+                }
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                setValidationError(errData.message || 'Gagal mengunggah berkas.');
+            }
+        } catch {
+            // Fallback via Inertia router
+            router.post(`/notes/${noteId}/attachments`, formData, {
+                preserveScroll: true,
+                onError: (err) => {
+                    setValidationError(Object.values(err)[0] as string);
+                },
+            });
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
     };
 
-    const handleDelete = (attachmentId: number) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        uploadFiles(files);
+    };
+
+    const handleDelete = async (attachmentId: string) => {
         if (!confirm('Hapus lampiran ini?')) return;
-        router.delete(`/notes/${noteId}/attachments/${attachmentId}`);
+        try {
+            const csrfToken = getCsrfToken();
+            const res = await fetch(`/notes/${noteId}/attachments/${attachmentId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.attachments && onAttachmentsUpdated) {
+                    onAttachmentsUpdated(data.attachments);
+                } else if (onAttachmentsUpdated) {
+                    onAttachmentsUpdated(attachments.filter((a) => a.id !== attachmentId));
+                } else {
+                    router.reload({ only: ['groups'] });
+                }
+            } else {
+                router.delete(`/notes/${noteId}/attachments/${attachmentId}`);
+            }
+        } catch {
+            router.delete(`/notes/${noteId}/attachments/${attachmentId}`);
+        }
     };
 
     const getFileIcon = (att: NoteAttachment) => {
@@ -115,11 +207,11 @@ export default function AttachmentsManager({
                         Lampiran File ({attachments.length})
                     </h4>
                     <p className="text-[11px] text-neutral-500 font-medium">
-                        Maks. {settings.max_file_size_mb} MB/file &bull; Hingga {settings.max_files_per_upload} file sekaligus
+                        Maks. {activeSettings.max_file_size_mb} MB/file &bull; Hingga {activeSettings.max_files_per_upload} file sekaligus
                     </p>
                 </div>
 
-                {editable && (
+                {isEditable && (
                     <div>
                         <input
                             ref={fileInputRef}
@@ -138,6 +230,57 @@ export default function AttachmentsManager({
                     </div>
                 )}
             </div>
+
+            {/* Interactive Drag & Drop Area */}
+            {isEditable && (
+                <div
+                    onDragEnter={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDragOver(true);
+                    }}
+                    onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDragOver(false);
+                    }}
+                    onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDragOver(false);
+                        const files = Array.from(e.dataTransfer.files || []);
+                        if (files.length > 0) {
+                            uploadFiles(files);
+                        }
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed p-4 sm:p-5 mb-3 text-center cursor-pointer transition-all select-none ${
+                        isDragOver
+                            ? 'border-black bg-[#FFDC58] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.01]'
+                            : 'border-neutral-400 bg-[#FFFDF8] hover:bg-neutral-50 hover:border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                    }`}
+                >
+                    <div className="w-10 h-10 bg-[#69D2E7] border-2 border-black flex items-center justify-center mx-auto mb-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        <FileUp className="w-5 h-5 text-black" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-heading font-black uppercase text-black">
+                        Tarik & Lepas File ke Sini atau <span className="underline decoration-2">Pilih Berkas</span>
+                    </p>
+                    <p className="text-[10px] sm:text-[11px] text-neutral-500 font-medium mt-1">
+                        Bisa drag & drop dari folder, atau paste (Ctrl+V) langsung screenshot gambar
+                    </p>
+                    {uploading && (
+                        <div className="pt-2 flex items-center justify-center gap-2 text-xs font-bold text-black">
+                            <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                            <span>Sedang mengunggah berkas...</span>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Validation Error Banner */}
             {validationError && (
@@ -237,26 +380,38 @@ export default function AttachmentsManager({
             {/* Lightbox Modal for Images */}
             {previewImage && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in"
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs overscroll-contain animate-in fade-in"
                     onClick={() => setPreviewImage(null)}
                 >
-                    <div className="relative max-w-4xl max-h-[90vh] p-2 bg-white border-[3px] border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                    <div
+                        className="relative w-full sm:w-auto max-w-4xl max-h-[90vh] p-4 bg-white rounded-t-[24px] sm:rounded-none border-t-[3px] border-x-[3px] sm:border-[3px] border-black border-b-0 sm:border-b-[3px] shadow-[0px_-4px_0px_0px_rgba(0,0,0,1)] sm:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3 sm:hidden shrink-0" />
                         <button
                             type="button"
                             onClick={() => setPreviewImage(null)}
-                            className="absolute -top-3 -right-3 p-1.5 bg-[#FF6B6B] border-2 border-black text-black font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                            className="absolute top-3 right-3 sm:-top-3 sm:-right-3 p-1.5 bg-[#FF6B6B] border-2 border-black text-black font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] z-10 cursor-pointer"
+                            title="Tutup"
                         >
                             <X className="w-5 h-5" />
                         </button>
-                        <img src={previewImage} alt="Pratinjau" className="max-w-full max-h-[82vh] object-contain mx-auto" />
+                        <img src={previewImage} alt="Pratinjau" className="max-w-full max-h-[75vh] object-contain mx-auto" />
                     </div>
                 </div>
             )}
 
             {/* Embedded PDF Viewer Modal */}
             {previewPdf && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in">
-                    <div className="relative w-full max-w-4xl h-[85vh] flex flex-col bg-white border-[3px] border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <div
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs overscroll-contain animate-in fade-in"
+                    onClick={() => setPreviewPdf(null)}
+                >
+                    <div
+                        className="relative w-full max-w-4xl h-[88vh] sm:h-[85vh] flex flex-col bg-white rounded-t-[24px] sm:rounded-none border-t-[3px] border-x-[3px] sm:border-[3px] border-black border-b-0 sm:border-b-[3px] shadow-[0px_-4px_0px_0px_rgba(0,0,0,1)] sm:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-12 h-1.5 bg-neutral-300 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
                         <div className="flex items-center justify-between p-3 border-b-2 border-black bg-[#FFDC58]">
                             <span className="font-heading font-black text-sm truncate">{previewPdf.name}</span>
                             <div className="flex items-center gap-2">
@@ -270,7 +425,8 @@ export default function AttachmentsManager({
                                 <button
                                     type="button"
                                     onClick={() => setPreviewPdf(null)}
-                                    className="p-1 bg-[#FF6B6B] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                                    className="p-1 bg-[#FF6B6B] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                    title="Tutup"
                                 >
                                     <X className="w-4 h-4 text-black" />
                                 </button>

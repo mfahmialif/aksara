@@ -1,42 +1,151 @@
 import React, { useState, useEffect } from 'react';
 import { router, usePage } from '@inertiajs/react';
-import { ChecklistItem, Note, PageProps } from '@/types';
+import { Note, PageProps, NoteGroup } from '@/types';
 import MemberLayout from '@/Layouts/MemberLayout';
 import CollaboratorsModal from '@/Components/Modals/CollaboratorsModal';
 import ShareModal from '@/Components/Modals/ShareModal';
-import { NoteEditorProps, ViewMode } from './types';
-import WorkspaceHeader from './components/WorkspaceHeader';
+import { NoteEditorProps } from './types';
+import WorkspaceNavbar from './components/WorkspaceNavbar';
+import FloatingTopicSidebar from './components/FloatingTopicSidebar';
 import WorkspaceExplorer from './components/WorkspaceExplorer';
-import EditorArea from './components/EditorArea';
-import { PanelLeftClose, PanelLeft, Plus, Clock, FileText } from 'lucide-react';
-import { NeoBadge } from '@/Components/UI/NeoInput';
+import KeepNoteModal from './components/KeepNoteModal';
+import FolderModal from './components/FolderModal';
+import { getCsrfToken } from '@/utils/csrf';
 
 export default function NoteEditor({
     app,
     groups = [],
     selected_note,
+    selected_group = null,
     is_owner,
     can_edit,
+    is_public_view = false,
+    is_group_shared_view = false,
+    is_single_note_view = false,
+    is_saved = false,
+    share_item_type = 'app',
+    share_item_id,
+    share_public_token,
 }: NoteEditorProps) {
     const { auth, system_settings } = usePage<PageProps>().props;
     const user = auth.user;
 
-    // View mode: 'explorer' (Folder & Grid Cards) vs 'editor' (Dedicated Writer Canvas)
-    const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    // Local reactive app and groups state for instant optimistic updates without page reloads
+    const [localApp, setLocalApp] = useState<NoteApp>(app);
+    const [localGroups, setLocalGroups] = useState<NoteGroup[]>(groups);
+    const topicLabel = localApp.topic_label || 'Topik';
+
+    const handleUpdateTopicLabel = async (newLabel: string) => {
+        const trimmed = newLabel.trim() || 'Topik';
+        // Optimistic update
+        setLocalApp((prev) => ({
+            ...prev,
+            topic_label: trimmed,
+        }));
+
+        try {
+            const csrfToken = getCsrfToken();
+            await fetch(`/app/${localApp.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    name: localApp.name,
+                    description: localApp.description || '',
+                    topic_label: trimmed,
+                }),
+            });
+        } catch {
+            // Revert on error
+            setLocalApp((prev) => ({
+                ...prev,
+                topic_label: app.topic_label || 'Topik',
+            }));
+        }
+    };
+
+    useEffect(() => {
+        setLocalApp(app);
+        setLocalGroups(groups);
+        if (keepModalNote && keepModalNote.id && keepModalNote.id !== '0') {
+            const all = groups.flatMap((g) => g.notes || []);
+            const updated = all.find((n) => n.id === keepModalNote.id);
+            if (updated) {
+                setKeepModalNote(updated);
+            }
+        }
+    }, [app, groups]);
+
+    // Google Keep-Style In-Place Modal Note
+    const [keepModalNote, setKeepModalNote] = useState<Note | null>(() => {
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
             if (params.has('note_id') && selected_note) {
-                return 'editor';
+                return selected_note;
+            }
+            if (is_single_note_view && selected_note) {
+                return selected_note;
             }
         }
-        return 'explorer';
+        return null;
     });
 
-    // Sidebar visibility when inside Editor mode (for quick switching)
-    const [showEditorSidebar, setShowEditorSidebar] = useState(true);
-
     // Selected group for filtering notes
-    const [activeGroupId, setActiveGroupId] = useState<number | 'all'>('all');
+    const [activeGroupId, setActiveGroupId] = useState<string | 'all'>(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const gParam = params.get('group_id');
+            if (gParam && groups.some((g) => g.id === gParam)) {
+                return gParam;
+            }
+        }
+        if (is_group_shared_view && selected_group) {
+            return selected_group.id;
+        }
+        return 'all';
+    });
+
+    const handleSetActiveGroupId = (id: string | 'all') => {
+        setActiveGroupId(id);
+        if (typeof window !== 'undefined' && is_public_view && !is_group_shared_view) {
+            const url = new URL(window.location.href);
+            if (id === 'all') {
+                url.searchParams.delete('group_id');
+            } else {
+                url.searchParams.set('group_id', id);
+            }
+            window.history.replaceState({}, '', url.pathname + (url.search || ''));
+        }
+    };
+
+    // Floating Topic Sidebar minimized/expanded state with localStorage persistence
+    const [isTopicSidebarMinimized, setIsTopicSidebarMinimized] = useState<boolean>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('aksara_topic_sidebar_minimized');
+            if (saved !== null) return saved === 'true';
+            return window.innerWidth < 1280;
+        }
+        return false;
+    });
+    const [mobileTopicDrawerOpen, setMobileTopicDrawerOpen] = useState(false);
+
+    const handleToggleTopicSidebar = (minimized?: boolean) => {
+        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+            setMobileTopicDrawerOpen((prev) => !prev);
+            return;
+        }
+        setIsTopicSidebarMinimized((prev) => {
+            const next = typeof minimized === 'boolean' ? minimized : !prev;
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('aksara_topic_sidebar_minimized', String(next));
+            }
+            return next;
+        });
+    };
 
     // Search query & category filter for notes
     const [searchQuery, setSearchQuery] = useState('');
@@ -47,133 +156,227 @@ export default function NoteEditor({
     const [appShareOpen, setAppShareOpen] = useState(false);
     const [noteCollabOpen, setNoteCollabOpen] = useState(false);
     const [noteShareOpen, setNoteShareOpen] = useState(false);
+    const [folderModalState, setFolderModalState] = useState<{
+        isOpen: boolean;
+        mode: 'create' | 'edit';
+        group?: NoteGroup | null;
+    }>({
+        isOpen: false,
+        mode: 'create',
+        group: null,
+    });
+    const [groupShareModalState, setGroupShareModalState] = useState<{
+        isOpen: boolean;
+        group: NoteGroup | null;
+    }>({
+        isOpen: false,
+        group: null,
+    });
 
-    // Group management
-    const [newGroupName, setNewGroupName] = useState('');
-    const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
-    const [editingGroupName, setEditingGroupName] = useState('');
+    const handleOpenShareGroup = (group: NoteGroup) => {
+        setGroupShareModalState({
+            isOpen: true,
+            group,
+        });
+    };
 
-    // Editor local state
-    const [currentNote, setCurrentNote] = useState<Note | null>(selected_note);
-    const [editorTitle, setEditorTitle] = useState('');
-    const [editorCategory, setEditorCategory] = useState<'regular' | 'task'>('regular');
-    const [editorDeadline, setEditorDeadline] = useState('');
-    const [editorReminderDays, setEditorReminderDays] = useState(user?.default_reminder_days || 1);
-    const [editorTab, setEditorTab] = useState<'text' | 'checklist' | 'drawing' | 'attachments'>('text');
-
-    const [editorHtml, setEditorHtml] = useState('');
-    const [editorChecklist, setEditorChecklist] = useState<ChecklistItem[]>([]);
-    const [editorDrawing, setEditorDrawing] = useState<string | null>(null);
-
-    const [isSaving, setIsSaving] = useState(false);
-    const [saveSuccess, setSaveSuccess] = useState(false);
-
-    // Synchronize editor state when selected note changes
-    useEffect(() => {
-        if (selected_note) {
-            setCurrentNote(selected_note);
-            setEditorTitle(selected_note.title || 'Catatan Baru');
-            setEditorCategory(selected_note.category);
-            setEditorDeadline(
-                selected_note.deadline_at
-                    ? new Date(selected_note.deadline_at).toISOString().slice(0, 16)
-                    : ''
-            );
-            setEditorReminderDays(
-                selected_note.reminder_days_before ?? (user?.default_reminder_days || 1)
-            );
-            setEditorDrawing(selected_note.drawing_data || null);
-
-            // Parse json content
-            try {
-                if (selected_note.content_json) {
-                    const parsed = JSON.parse(selected_note.content_json);
-                    setEditorHtml(parsed.html || '');
-                    setEditorChecklist(Array.isArray(parsed.checklist) ? parsed.checklist : []);
-                } else {
-                    setEditorHtml('');
-                    setEditorChecklist([]);
-                }
-            } catch {
-                setEditorHtml(selected_note.content_json || '');
-                setEditorChecklist([]);
-            }
-        }
-    }, [selected_note?.id]);
 
     // Flat list of all notes with group names
-    const allNotes = groups.flatMap((g) =>
+    const allNotes = localGroups.flatMap((g) =>
         (g.notes || []).map((n) => ({ ...n, group_name: g.name }))
     );
 
-    // Filtered notes by group and search query
-    const filteredNotes = allNotes.filter((note) => {
-        const matchesGroup = activeGroupId === 'all' || note.note_group_id === activeGroupId;
-        const matchesSearch =
-            !searchQuery || (note.title || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCategory =
-            categoryFilter === 'all' || note.category === categoryFilter;
-        return matchesGroup && matchesSearch && matchesCategory;
-    });
-
-    // Notes in the active note's group (for quick switching sidebar in editor)
-    const currentGroupNotes = currentNote
-        ? allNotes.filter((n) => n.note_group_id === currentNote.note_group_id)
-        : [];
-
-    const handleSelectNote = (note: Note) => {
-        if (currentNote?.id === note.id) {
-            setViewMode('editor');
-            return;
-        }
-
-        router.get(
-            `/app/${app.id}`,
-            { note_id: note.id },
-            {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    setViewMode('editor');
-                },
+    // Filtered notes by group, search query, and category/deadline, sorted by pinned & sort_order
+    const filteredNotes = allNotes
+        .filter((note) => {
+            const matchesGroup = activeGroupId === 'all' || note.note_group_id === activeGroupId;
+            const matchesSearch =
+                !searchQuery || (note.title || '').toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesCategory =
+                categoryFilter === 'all' ||
+                (categoryFilter === 'task'
+                    ? Boolean(note.deadline_at) || note.category === 'task'
+                    : note.category === 'regular');
+            return matchesGroup && matchesSearch && matchesCategory;
+        })
+        .sort((a, b) => {
+            // Pinned first
+            if (Boolean(a.is_pinned) !== Boolean(b.is_pinned)) {
+                return a.is_pinned ? -1 : 1;
             }
-        );
-    };
-
-    const handleSaveNote = () => {
-        if (!currentNote || !can_edit) return;
-
-        setIsSaving(true);
-        setSaveSuccess(false);
-
-        const contentJson = JSON.stringify({
-            html: editorHtml,
-            checklist: editorChecklist,
+            // Sort order ascending
+            const orderA = a.sort_order ?? 0;
+            const orderB = b.sort_order ?? 0;
+            if (orderA !== orderB) {
+                return orderA - orderB;
+            }
+            // Fallback by created_at descending or ID
+            return (b.created_at || '').localeCompare(a.created_at || '') || b.id.localeCompare(a.id);
         });
 
-        router.put(
-            `/notes/${currentNote.id}`,
-            {
-                title: editorTitle.trim() || 'Catatan Tanpa Judul',
-                category: editorCategory,
-                content_json: contentJson,
-                drawing_data: editorDrawing,
-                deadline_at: editorCategory === 'task' && editorDeadline ? editorDeadline : null,
-                reminder_days_before: editorCategory === 'task' ? editorReminderDays : 0,
-            },
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setIsSaving(false);
-                    setSaveSuccess(true);
-                    setTimeout(() => setSaveSuccess(false), 2000);
-                },
-                onError: () => setIsSaving(false),
+    const handleSelectNote = (note: Note) => {
+        setKeepModalNote(note);
+        if (typeof window !== 'undefined') {
+            if (is_public_view) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('note_id', note.id);
+                window.history.replaceState({}, '', url.pathname + url.search);
+            } else {
+                window.history.replaceState({}, '', `/app/${app.id}?note_id=${note.id}`);
             }
-        );
+        }
     };
 
-    const handleCreateNote = (groupId: number, category: 'regular' | 'task' = 'regular') => {
+    const handleCloseKeepModal = () => {
+        setKeepModalNote(null);
+        if (typeof window !== 'undefined') {
+            if (is_public_view) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('note_id');
+                window.history.replaceState({}, '', url.pathname + (url.search || ''));
+            } else {
+                window.history.replaceState({}, '', `/app/${app.id}`);
+            }
+        }
+    };
+
+    const handleNoteCreated = (newNote: Note) => {
+        setLocalGroups((prevGroups) =>
+            prevGroups.map((g) => {
+                if (g.id === newNote.note_group_id) {
+                    const existingIndex = (g.notes || []).findIndex((n) => n.id === newNote.id);
+                    if (existingIndex >= 0) {
+                        const updatedNotes = [...(g.notes || [])];
+                        updatedNotes[existingIndex] = { ...updatedNotes[existingIndex], ...newNote };
+                        return { ...g, notes: updatedNotes };
+                    }
+                    return { ...g, notes: [newNote, ...(g.notes || [])] };
+                }
+                return g;
+            })
+        );
+        setKeepModalNote(newNote);
+    };
+
+    const handleNoteUpdated = (updatedNote: Note) => {
+        setLocalGroups((prevGroups) =>
+            prevGroups.map((g) => {
+                if (g.id === updatedNote.note_group_id) {
+                    const updatedNotes = (g.notes || []).map((n) =>
+                        n.id === updatedNote.id ? { ...n, ...updatedNote } : n
+                    );
+                    return { ...g, notes: updatedNotes };
+                }
+                return g;
+            })
+        );
+        if (keepModalNote?.id === updatedNote.id) {
+            setKeepModalNote((prev) => (prev ? { ...prev, ...updatedNote } : updatedNote));
+        }
+    };
+
+    const handleTogglePin = async (note: Note) => {
+        const nextPinned = !note.is_pinned;
+        // Optimistic update
+        setLocalGroups((prevGroups) =>
+            prevGroups.map((g) => ({
+                ...g,
+                notes: (g.notes || []).map((n) =>
+                    n.id === note.id ? { ...n, is_pinned: nextPinned } : n
+                ),
+            }))
+        );
+        if (keepModalNote?.id === note.id) {
+            setKeepModalNote((prev) => (prev ? { ...prev, is_pinned: nextPinned } : null));
+        }
+
+        try {
+            const csrfToken = getCsrfToken();
+            await fetch(`/notes/${note.id}/pin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+        } catch {
+            // Revert on error
+            setLocalGroups((prevGroups) =>
+                prevGroups.map((g) => ({
+                    ...g,
+                    notes: (g.notes || []).map((n) =>
+                        n.id === note.id ? { ...n, is_pinned: note.is_pinned } : n
+                    ),
+                }))
+            );
+        }
+    };
+
+    const handleReorderNotes = async (
+        reorderedNotes: { id: string; sort_order: number; is_pinned?: boolean }[]
+    ) => {
+        const orderMap = new Map<string, { sort_order: number; is_pinned?: boolean }>();
+        reorderedNotes.forEach((item) => {
+            orderMap.set(item.id, { sort_order: item.sort_order, is_pinned: item.is_pinned });
+        });
+
+        // Optimistically update local groups
+        setLocalGroups((prevGroups) =>
+            prevGroups.map((g) => ({
+                ...g,
+                notes: (g.notes || []).map((n) => {
+                    const update = orderMap.get(n.id);
+                    if (update) {
+                        return {
+                            ...n,
+                            sort_order: update.sort_order,
+                            is_pinned: update.is_pinned !== undefined ? update.is_pinned : n.is_pinned,
+                        };
+                    }
+                    return n;
+                }),
+            }))
+        );
+
+        try {
+            const csrfToken = getCsrfToken();
+            await fetch('/notes/reorder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ notes: reorderedNotes }),
+            });
+        } catch {
+            // ignore network error
+        }
+    };
+
+    const handleOpenCreateModal = (format: 'text' | 'checklist' | 'drawing' = 'text') => {
+        const targetGroupId = activeGroupId === 'all' ? (localGroups[0]?.id || '') : activeGroupId;
+        const newDraft: Note = {
+            id: '',
+            note_group_id: targetGroupId,
+            title: '',
+            category: 'regular',
+            content_json: JSON.stringify({ type: format, html: '', checklist: [] }),
+            drawing_data: null,
+            is_public: false,
+            public_token: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            attachments: [],
+            collaborators: [],
+        };
+        setKeepModalNote(newDraft);
+    };
+
+    const handleCreateNote = (groupId: string, category: 'regular' | 'task' = 'regular') => {
         router.post(
             `/groups/${groupId}/notes`,
             {
@@ -181,68 +384,66 @@ export default function NoteEditor({
                 title: category === 'task' ? 'Tugas Baru' : 'Catatan Baru',
             },
             {
-                onSuccess: () => {
-                    setViewMode('editor');
-                },
+                preserveScroll: true,
             }
         );
     };
 
-    const handleDeleteNote = (noteId: number) => {
+    const handleDeleteNote = (noteId: string) => {
         if (!confirm('Apakah Anda yakin ingin menghapus catatan ini?')) return;
+        setLocalGroups((prevGroups) =>
+            prevGroups.map((g) => ({
+                ...g,
+                notes: (g.notes || []).filter((n) => n.id !== noteId),
+            }))
+        );
+        if (keepModalNote?.id === noteId) {
+            handleCloseKeepModal();
+        }
         router.delete(`/notes/${noteId}`, {
-            onSuccess: () => {
-                setViewMode('explorer');
-            },
+            preserveScroll: true,
+            preserveState: true,
         });
     };
 
-    const handleCategoryChange = (cat: 'regular' | 'task') => {
-        setEditorCategory(cat);
-        if (cat === 'task' && !editorDeadline) {
-            const defaultDate = new Date();
-            defaultDate.setDate(defaultDate.getDate() + 3);
-            defaultDate.setHours(23, 59, 0, 0);
-            setEditorDeadline(defaultDate.toISOString().slice(0, 16));
-            if (!editorReminderDays) {
-                setEditorReminderDays(user?.default_reminder_days || 1);
-            }
+    const handleOpenAddGroup = () => {
+        setFolderModalState({
+            isOpen: true,
+            mode: 'create',
+            group: null,
+        });
+    };
+
+    const handleOpenEditGroup = (group: NoteGroup) => {
+        setFolderModalState({
+            isOpen: true,
+            mode: 'edit',
+            group,
+        });
+    };
+
+    const handleSaveGroupModal = (name: string, color: string) => {
+        if (!name.trim()) return;
+        if (folderModalState.mode === 'create') {
+            router.post(
+                `/app/${app.id}/groups`,
+                { name: name.trim(), color: color || '#FFDC58' },
+                { preserveScroll: true }
+            );
+        } else if (folderModalState.mode === 'edit' && folderModalState.group) {
+            const groupId = folderModalState.group.id;
+            router.put(
+                `/groups/${groupId}`,
+                { name: name.trim(), color: color || '#FFDC58' },
+                { preserveScroll: true }
+            );
         }
     };
 
-    const handleAddGroup = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newGroupName.trim()) return;
-
-        router.post(
-            `/app/${app.id}/groups`,
-            { name: newGroupName.trim() },
-            {
-                onSuccess: () => {
-                    setNewGroupName('');
-                },
-            }
-        );
-    };
-
-    const handleSaveGroupRename = (groupId: number) => {
-        if (!editingGroupName.trim()) return;
-        router.put(
-            `/groups/${groupId}`,
-            { name: editingGroupName.trim() },
-            {
-                onSuccess: () => {
-                    setEditingGroupId(null);
-                    setEditingGroupName('');
-                },
-            }
-        );
-    };
-
-    const handleDeleteGroup = (groupId: number) => {
+    const handleDeleteGroup = (groupId: string) => {
         if (
             !confirm(
-                'Hapus grup ini? Semua catatan di dalamnya juga akan terhapus secara permanen!'
+                `Hapus ${topicLabel.toLowerCase()} ini? Semua catatan di dalamnya juga akan terhapus secara permanen!`
             )
         )
             return;
@@ -255,188 +456,114 @@ export default function NoteEditor({
         });
     };
 
-    const themeColors: Record<string, string> = {
-        yellow: 'bg-[#FFDC58]',
-        purple: 'bg-[#A388EE]',
-        mint: 'bg-[#7FBC8C]',
-        coral: 'bg-[#FF6B6B]',
-        sky: 'bg-[#69D2E7]',
-        pink: 'bg-[#FF8FAB]',
-        orange: 'bg-[#FFA94D]',
-    };
-
-    const activeThemeBg = themeColors[app.color_theme] || 'bg-[#FFDC58]';
+    const workspaceNav = (
+        <WorkspaceNavbar
+            app={localApp}
+            groups={localGroups}
+            activeGroupId={activeGroupId}
+            setActiveGroupId={handleSetActiveGroupId}
+            totalNotesAll={allNotes.length}
+            canEdit={can_edit}
+            isOwner={is_owner}
+            isGroupSharedView={is_group_shared_view}
+            sharedGroup={selected_group}
+            isSaved={is_saved}
+            shareItemType={share_item_type}
+            shareItemId={share_item_id || (is_group_shared_view && selected_group ? selected_group.id : (is_single_note_view && selected_note ? selected_note.id : localApp.id))}
+            sharePublicToken={share_public_token || (is_group_shared_view && selected_group ? selected_group.public_token || undefined : (is_single_note_view && selected_note ? selected_note.public_token || undefined : localApp.public_token))}
+            isPublicView={is_public_view}
+            onOpenCollab={() => setAppCollabOpen(true)}
+            onOpenShare={() => setAppShareOpen(true)}
+            onOpenShareGroup={handleOpenShareGroup}
+            onOpenAddGroup={handleOpenAddGroup}
+            onOpenEditGroup={handleOpenEditGroup}
+            onDeleteGroup={handleDeleteGroup}
+            onToggleTopicSidebar={() => handleToggleTopicSidebar()}
+            isTopicSidebarMinimized={isTopicSidebarMinimized}
+            topicLabel={topicLabel}
+        />
+    );
 
     return (
-        <MemberLayout title={`${app.name} - Aksara Workspace`}>
-            {/* Contained Neobrutalist Workspace Header (Eliminating any edge-to-edge stretching) */}
-            <WorkspaceHeader
-                app={app}
-                isOwner={is_owner}
-                groupsCount={groups.length}
-                notesCount={allNotes.length}
-                viewMode={viewMode}
-                setViewMode={setViewMode}
-                hasSelectedNote={!!currentNote}
-                onOpenCollab={() => setAppCollabOpen(true)}
-                onOpenShare={() => setAppShareOpen(true)}
-                themeBg={activeThemeBg}
-            />
-
-            {/* VIEW 1: WORKSPACE EXPLORER (Folder Navigation & Responsive Note Cards Grid) */}
-            {viewMode === 'explorer' && (
-                <WorkspaceExplorer
-                    groups={groups}
+        <MemberLayout
+            title={`${app.name} - Aksara Workspace`}
+            workspaceNav={workspaceNav}
+        >
+            <div className="md:flex md:items-start md:gap-5 lg:gap-6 relative w-full">
+                {/* FLOATING & COLLAPSIBLE TOPIC SIDEBAR */}
+                <FloatingTopicSidebar
+                    groups={localGroups}
                     activeGroupId={activeGroupId}
-                    setActiveGroupId={setActiveGroupId}
-                    filteredNotes={filteredNotes}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    categoryFilter={categoryFilter}
-                    setCategoryFilter={setCategoryFilter}
+                    setActiveGroupId={handleSetActiveGroupId}
+                    totalNotesAll={allNotes.length}
                     canEdit={can_edit}
-                    onSelectNote={handleSelectNote}
-                    onCreateNote={handleCreateNote}
+                    isOwner={is_owner}
+                    isGroupSharedView={is_group_shared_view}
+                    sharedGroup={selected_group}
+                    isPublicView={is_public_view}
+                    topicLabel={topicLabel}
+                    onUpdateTopicLabel={handleUpdateTopicLabel}
+                    onOpenAddGroup={handleOpenAddGroup}
+                    onOpenEditGroup={handleOpenEditGroup}
+                    onDeleteGroup={handleDeleteGroup}
+                    onOpenShareGroup={handleOpenShareGroup}
+                    isMinimized={isTopicSidebarMinimized}
+                    setIsMinimized={(val) => handleToggleTopicSidebar(val)}
+                    mobileDrawerOpen={mobileTopicDrawerOpen}
+                    setMobileDrawerOpen={setMobileTopicDrawerOpen}
+                />
+
+                {/* PRIMARY GOOGLE KEEP-STYLE WORKSPACE (In-Place Creation, Filter & Cards Grid) */}
+                <div className="w-full flex-1 min-w-0">
+                    <WorkspaceExplorer
+                        groups={localGroups}
+                        activeGroupId={activeGroupId}
+                        setActiveGroupId={handleSetActiveGroupId}
+                        filteredNotes={filteredNotes}
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        categoryFilter={categoryFilter}
+                        setCategoryFilter={setCategoryFilter}
+                        canEdit={can_edit}
+                        onSelectNote={handleSelectNote}
+                        onCreateNote={handleCreateNote}
+                        onDeleteNote={handleDeleteNote}
+                        onOpenNoteShare={(note) => {
+                            setKeepModalNote(note);
+                            setNoteShareOpen(true);
+                        }}
+                        defaultReminderDays={user?.default_reminder_days || 1}
+                        onNoteCreated={handleNoteCreated}
+                        onOpenCreateModal={handleOpenCreateModal}
+                        onTogglePin={handleTogglePin}
+                        onReorderNotes={handleReorderNotes}
+                        topicLabel={topicLabel}
+                    />
+                </div>
+            </div>
+
+            {/* Google Keep-Style In-Place Modal with True Fullscreen Toggle */}
+            {keepModalNote && (
+                <KeepNoteModal
+                    note={keepModalNote}
+                    isOpen={Boolean(keepModalNote)}
+                    onClose={handleCloseKeepModal}
+                    groups={localGroups}
+                    canEdit={can_edit}
+                    user={user}
+                    systemSettings={system_settings}
+                    onNoteUpdated={handleNoteUpdated}
+                    onNoteCreated={handleNoteCreated}
                     onDeleteNote={handleDeleteNote}
-                    onOpenNoteShare={(note) => {
-                        setCurrentNote(note);
+                    onOpenCollab={(n) => {
+                        setKeepModalNote(n);
+                        setNoteCollabOpen(true);
+                    }}
+                    onOpenShare={(n) => {
+                        setKeepModalNote(n);
                         setNoteShareOpen(true);
                     }}
-                    editingGroupId={editingGroupId}
-                    setEditingGroupId={setEditingGroupId}
-                    editingGroupName={editingGroupName}
-                    setEditingGroupName={setEditingGroupName}
-                    newGroupName={newGroupName}
-                    setNewGroupName={setNewGroupName}
-                    onSaveRenameGroup={handleSaveGroupRename}
-                    onDeleteGroup={handleDeleteGroup}
-                    onAddGroup={handleAddGroup}
                 />
-            )}
-
-            {/* VIEW 2: DEDICATED NOTE EDITOR (Spacious, Focus-First Canvas with Collapsible Quick Switcher) */}
-            {viewMode === 'editor' && (
-                <div className="flex flex-col lg:flex-row gap-5 items-start">
-                    {/* Collapsible Quick Switcher Sidebar for notes in current group */}
-                    {showEditorSidebar ? (
-                        <div className="w-full lg:w-72 shrink-0 bg-white border-2 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-3">
-                            <div className="flex items-center justify-between pb-2 border-b-2 border-black">
-                                <div>
-                                    <h3 className="font-heading font-black text-xs uppercase tracking-wider text-black">
-                                        Catatan di Grup Ini
-                                    </h3>
-                                    <p className="text-[11px] text-neutral-500 font-bold truncate max-w-[170px]">
-                                        {currentNote?.group?.name || groups.find((g) => g.id === currentNote?.note_group_id)?.name || 'Grup'} ({currentGroupNotes.length})
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowEditorSidebar(false)}
-                                    className="p-1.5 hover:bg-neutral-100 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-colors cursor-pointer"
-                                    title="Sembunyikan Sidebar (Mode Fokus)"
-                                >
-                                    <PanelLeftClose className="w-4 h-4 text-black" />
-                                </button>
-                            </div>
-
-                            {/* Create new note in current group shortcut */}
-                            {can_edit && currentNote && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleCreateNote(currentNote.note_group_id, 'regular')}
-                                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#FFDC58] hover:bg-[#ffe170] border-2 border-black font-heading font-bold text-xs uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    Tambah Catatan
-                                </button>
-                            )}
-
-                            {/* List of notes in current group */}
-                            <div className="space-y-1.5 max-h-[550px] overflow-y-auto pt-1 pr-0.5">
-                                {currentGroupNotes.map((note) => {
-                                    const isCurrent = currentNote?.id === note.id;
-                                    const isTask = note.category === 'task';
-
-                                    return (
-                                        <div
-                                            key={note.id}
-                                            onClick={() => handleSelectNote(note)}
-                                            className={`p-2.5 border-2 border-black transition-all cursor-pointer ${
-                                                isCurrent
-                                                    ? 'bg-[#FFDC58] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-black'
-                                                    : 'bg-white hover:bg-neutral-50 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
-                                            }`}
-                                        >
-                                            <div className="flex items-center justify-between gap-1 mb-1">
-                                                <NeoBadge variant={isTask ? 'coral' : 'yellow'} className="text-[10px] py-0 px-1.5">
-                                                    {isTask ? 'Tugas' : 'Biasa'}
-                                                </NeoBadge>
-                                                {isTask && note.deadline_at && (
-                                                    <span className="text-[10px] font-bold text-rose-700 flex items-center gap-0.5">
-                                                        <Clock className="w-2.5 h-2.5" />
-                                                        {new Date(note.deadline_at).toLocaleDateString('id-ID', {
-                                                            day: 'numeric',
-                                                            month: 'short',
-                                                        })}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-xs font-bold uppercase truncate text-black">
-                                                {note.title || 'Tanpa Judul'}
-                                            </p>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ) : (
-                        /* Minimized toggle button for focus mode */
-                        <button
-                            type="button"
-                            onClick={() => setShowEditorSidebar(true)}
-                            className="hidden lg:inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#FFDC58] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-heading font-black text-xs uppercase cursor-pointer shrink-0"
-                            title="Tampilkan Daftar Catatan"
-                        >
-                            <PanelLeft className="w-4 h-4 text-black" />
-                            <span>Daftar Catatan</span>
-                        </button>
-                    )}
-
-                    {/* Main Dedicated Editor Area */}
-                    <div className="flex-1 w-full min-w-0">
-                        <EditorArea
-                            selectedNote={currentNote}
-                            groups={groups}
-                            canEdit={can_edit}
-                            user={user}
-                            systemSettings={system_settings}
-                            editorTitle={editorTitle}
-                            setEditorTitle={setEditorTitle}
-                            editorCategory={editorCategory}
-                            onCategoryChange={handleCategoryChange}
-                            editorDeadline={editorDeadline}
-                            setEditorDeadline={setEditorDeadline}
-                            editorReminderDays={editorReminderDays}
-                            setEditorReminderDays={setEditorReminderDays}
-                            editorTab={editorTab}
-                            setEditorTab={setEditorTab}
-                            editorHtml={editorHtml}
-                            setEditorHtml={setEditorHtml}
-                            editorChecklist={editorChecklist}
-                            setEditorChecklist={setEditorChecklist}
-                            editorDrawing={editorDrawing}
-                            setEditorDrawing={setEditorDrawing}
-                            isSaving={isSaving}
-                            saveSuccess={saveSuccess}
-                            onSaveNote={handleSaveNote}
-                            onDeleteNote={handleDeleteNote}
-                            onOpenNoteCollab={() => setNoteCollabOpen(true)}
-                            onOpenNoteShare={() => setNoteShareOpen(true)}
-                            onCreateNote={handleCreateNote}
-                            onBackToExplorer={() => setViewMode('explorer')}
-                        />
-                    </div>
-                </div>
             )}
 
             {/* App Level Collaborators Modal */}
@@ -454,36 +581,152 @@ export default function NoteEditor({
                 isOpen={appShareOpen}
                 onClose={() => setAppShareOpen(false)}
                 level="app"
-                targetId={app.id}
-                title={app.name}
-                isPublic={app.is_public}
-                publicToken={app.public_token}
+                targetId={localApp.id}
+                title={localApp.name}
+                isPublic={localApp.is_public}
+                publicToken={localApp.public_token}
+                publicPermission={localApp.public_permission}
+                canEdit={can_edit}
+                isOwner={is_owner}
+                isPublicView={is_public_view}
+                onSharingUpdated={(updated) => {
+                    setLocalApp((prev) => ({
+                        ...prev,
+                        is_public: updated.is_public,
+                        public_token: updated.public_token,
+                        public_permission: updated.public_permission,
+                    }));
+                }}
             />
 
             {/* Note Level Collaborators Modal */}
-            {currentNote && (
+            {keepModalNote && (
                 <CollaboratorsModal
                     isOpen={noteCollabOpen}
                     onClose={() => setNoteCollabOpen(false)}
                     level="note"
-                    targetId={currentNote.id}
-                    title={currentNote.title}
-                    collaborators={currentNote.collaborators || []}
+                    targetId={keepModalNote.id}
+                    title={keepModalNote.title}
+                    collaborators={keepModalNote.collaborators || []}
                 />
             )}
 
             {/* Note Level Share Modal */}
-            {currentNote && (
+            {keepModalNote && (
                 <ShareModal
                     isOpen={noteShareOpen}
                     onClose={() => setNoteShareOpen(false)}
                     level="note"
-                    targetId={currentNote.id}
-                    title={currentNote.title}
-                    isPublic={currentNote.is_public}
-                    publicToken={currentNote.public_token}
+                    targetId={keepModalNote.id}
+                    title={keepModalNote.title}
+                    isPublic={keepModalNote.is_public}
+                    publicToken={keepModalNote.public_token}
+                    publicPermission={keepModalNote.public_permission}
+                    canEdit={can_edit}
+                    isOwner={is_owner}
+                    isPublicView={is_public_view}
+                    contextInherited={Boolean(is_public_view && !is_single_note_view)}
+                    rootName={is_group_shared_view && selected_group ? `${topicLabel} '${selected_group.name}'` : `Ruang Kerja '${localApp.name}'`}
+                    contextPermission={is_group_shared_view && selected_group ? selected_group.public_permission : localApp.public_permission}
+                    contextShareUrl={
+                        typeof window !== 'undefined'
+                            ? (is_group_shared_view && selected_group
+                                  ? `${window.location.origin}/s/${selected_group.public_token}?note_id=${keepModalNote.id}`
+                                  : (localApp.public_token ? `${window.location.origin}/s/${localApp.public_token}?note_id=${keepModalNote.id}` : undefined))
+                            : undefined
+                    }
+                    onSharingUpdated={(updated) => {
+                        setKeepModalNote((prev) =>
+                            prev
+                                ? {
+                                      ...prev,
+                                      is_public: updated.is_public,
+                                      public_token: updated.public_token,
+                                      public_permission: updated.public_permission,
+                                  }
+                                : null
+                        );
+                        setLocalGroups((prevGroups) =>
+                            prevGroups.map((g) => ({
+                                ...g,
+                                notes: (g.notes || []).map((n) =>
+                                    n.id === keepModalNote.id
+                                        ? {
+                                              ...n,
+                                              is_public: updated.is_public,
+                                              public_token: updated.public_token,
+                                              public_permission: updated.public_permission,
+                                          }
+                                        : n
+                                ),
+                            }))
+                        );
+                    }}
                 />
             )}
+
+            {/* Group Level Share Modal */}
+            {groupShareModalState.group && (
+                <ShareModal
+                    isOpen={groupShareModalState.isOpen}
+                    onClose={() => setGroupShareModalState((prev) => ({ ...prev, isOpen: false }))}
+                    level="group"
+                    targetId={groupShareModalState.group.id}
+                    title={groupShareModalState.group.name}
+                    isPublic={groupShareModalState.group.is_public}
+                    publicToken={groupShareModalState.group.public_token}
+                    publicPermission={groupShareModalState.group.public_permission}
+                    canEdit={can_edit}
+                    isOwner={is_owner}
+                    isPublicView={is_public_view}
+                    contextInherited={Boolean(is_public_view && !is_group_shared_view)}
+                    rootName={`Ruang Kerja '${localApp.name}'`}
+                    contextPermission={localApp.public_permission}
+                    contextShareUrl={
+                        typeof window !== 'undefined'
+                            ? (localApp.public_token ? `${window.location.origin}/s/${localApp.public_token}?group_id=${groupShareModalState.group.id}` : undefined)
+                            : undefined
+                    }
+                    onSharingUpdated={(updated) => {
+                        setGroupShareModalState((prev) =>
+                            prev.group
+                                ? {
+                                      ...prev,
+                                      group: {
+                                          ...prev.group,
+                                          is_public: updated.is_public,
+                                          public_token: updated.public_token,
+                                          public_permission: updated.public_permission,
+                                      },
+                                  }
+                                : prev
+                        );
+                        setLocalGroups((prevGroups) =>
+                            prevGroups.map((g) =>
+                                g.id === groupShareModalState.group?.id
+                                    ? {
+                                          ...g,
+                                          is_public: updated.is_public,
+                                          public_token: updated.public_token,
+                                          public_permission: updated.public_permission,
+                                      }
+                                    : g
+                            )
+                        );
+                    }}
+                />
+            )}
+
+            {/* Folder Add / Edit Modal */}
+            <FolderModal
+                isOpen={folderModalState.isOpen}
+                onClose={() => setFolderModalState((prev) => ({ ...prev, isOpen: false }))}
+                mode={folderModalState.mode}
+                initialGroup={folderModalState.group}
+                onSubmit={handleSaveGroupModal}
+                onDelete={handleDeleteGroup}
+                topicLabel={topicLabel}
+            />
         </MemberLayout>
     );
 }

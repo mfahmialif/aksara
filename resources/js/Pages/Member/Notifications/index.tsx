@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, router } from '@inertiajs/react';
 import MemberLayout from '@/Layouts/MemberLayout';
 import NeoButton from '@/Components/UI/NeoButton';
+import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
 import { Bell, CheckCheck, ArrowLeft, Archive } from 'lucide-react';
 import { NotificationsProps } from './types';
 import NotificationItem from './components/NotificationItem';
@@ -12,7 +13,7 @@ export default function Notifications({
     archived_count = 0,
     current_tab = 'unread',
 }: NotificationsProps) {
-    const handleMarkAsRead = (id: number) => {
+    const handleMarkAsRead = (id: string) => {
         router.post(`/notifications/${id}/read`, {}, { preserveScroll: true });
     };
 
@@ -20,11 +21,11 @@ export default function Notifications({
         router.post('/notifications/read-all', {}, { preserveScroll: true });
     };
 
-    const handleArchive = (id: number) => {
+    const handleArchive = (id: string) => {
         router.post(`/notifications/${id}/archive`, {}, { preserveScroll: true });
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = (id: string) => {
         if (confirm('Hapus notifikasi ini secara permanen?')) {
             router.delete(`/notifications/${id}`, { preserveScroll: true });
         }
@@ -36,13 +37,13 @@ export default function Notifications({
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 pb-4 border-b-2 border-black">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
-                        <Link
+                        <DebouncedPrefetchLink
                             href="/app"
                             className="inline-flex items-center text-xs font-bold uppercase tracking-wider text-neutral-600 hover:text-black gap-1 transition-colors"
                         >
                             <ArrowLeft className="w-3.5 h-3.5" />
                             Ruang Kerja
-                        </Link>
+                        </DebouncedPrefetchLink>
                     </div>
                     <h1 className="text-3xl sm:text-4xl font-black font-heading uppercase text-black flex items-center gap-3">
                         <span className="p-2 bg-[#FFDC58] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] inline-flex">
@@ -70,7 +71,7 @@ export default function Notifications({
 
             {/* TABS NAVIGATION */}
             <div className="flex border-b-2 border-black mb-6">
-                <Link
+                <DebouncedPrefetchLink
                     href="/notifications?tab=unread"
                     className={`flex items-center gap-2 px-5 py-3 font-heading font-black text-sm uppercase border-t-2 border-l-2 border-r-2 border-black -mb-[2px] transition-all ${
                         current_tab === 'unread'
@@ -85,9 +86,9 @@ export default function Notifications({
                             {unread_count}
                         </span>
                     )}
-                </Link>
+                </DebouncedPrefetchLink>
 
-                <Link
+                <DebouncedPrefetchLink
                     href="/notifications?tab=archived"
                     className={`flex items-center gap-2 px-5 py-3 font-heading font-black text-sm uppercase border-t-2 border-l-2 border-r-2 border-black -mb-[2px] transition-all ${
                         current_tab === 'archived'
@@ -102,7 +103,7 @@ export default function Notifications({
                             {archived_count}
                         </span>
                     )}
-                </Link>
+                </DebouncedPrefetchLink>
             </div>
 
             {/* NOTIFICATIONS LIST */}
@@ -142,7 +143,7 @@ export default function Notifications({
                     </span>
                     <div className="flex items-center gap-1.5">
                         {notifications.links.map((link, i) => (
-                            <Link
+                            <DebouncedPrefetchLink
                                 key={i}
                                 href={link.url || '#'}
                                 className={`px-3 py-1.5 text-xs font-heading font-bold border-2 border-black transition-all ${

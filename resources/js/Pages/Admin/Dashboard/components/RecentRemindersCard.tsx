@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
 import { NeoBadge } from '@/Components/UI/NeoInput';
 
 interface RecentRemindersCardProps {
@@ -13,9 +13,9 @@ export default function RecentRemindersCard({ reminders = [] }: RecentRemindersC
                 <h3 className="font-heading font-black text-sm uppercase tracking-wide">
                     Riwayat Pengiriman Pengingat
                 </h3>
-                <Link href="/admin/reminders" className="text-xs font-bold text-neutral-700 hover:underline">
+                <DebouncedPrefetchLink href="/admin/reminders" className="text-xs font-bold text-neutral-700 hover:underline">
                     Lihat Semua
-                </Link>
+                </DebouncedPrefetchLink>
             </div>
 
             {reminders.length === 0 ? (

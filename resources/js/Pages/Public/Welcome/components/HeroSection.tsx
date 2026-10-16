@@ -1,14 +1,15 @@
 import React from 'react';
 import NeoButton from '@/Components/UI/NeoButton';
 import { NeoBadge } from '@/Components/UI/NeoInput';
-import { Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 
 interface HeroSectionProps {
     flashError?: string | null;
     flashSuccess?: string | null;
+    flashInfo?: string | null;
 }
 
-export default function HeroSection({ flashError, flashSuccess }: HeroSectionProps) {
+export default function HeroSection({ flashError, flashSuccess, flashInfo }: HeroSectionProps) {
     return (
         <section className="relative border-b-3 border-black bg-[#FFFDF8] overflow-hidden py-16 md:py-24">
             {/* Decorative Background Elements */}
@@ -67,6 +68,22 @@ export default function HeroSection({ flashError, flashSuccess }: HeroSectionPro
                             </h4>
                             <p className="text-xs sm:text-sm font-bold text-neutral-800 mt-1 leading-snug">
                                 {flashSuccess}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {flashInfo && (
+                    <div className="max-w-xl mx-auto mb-8 p-4 bg-[#E8F0FE] border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left flex items-start gap-3.5">
+                        <div className="w-8 h-8 bg-sky-500 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center shrink-0 mt-0.5">
+                            <Info className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="font-heading font-black text-sm uppercase text-black">
+                                Akses Masuk Diperlukan
+                            </h4>
+                            <p className="text-xs sm:text-sm font-bold text-neutral-800 mt-1 leading-snug">
+                                {flashInfo}
                             </p>
                         </div>
                     </div>

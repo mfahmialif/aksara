@@ -15,7 +15,7 @@ export default function SharedAppsSection({ sharedApps }: SharedAppsSectionProps
     return (
         <section className="mb-12">
             <div className="flex items-center gap-2 mb-4">
-                <NeoBadge variant="purple">Kolaborasi Level Aplikasi</NeoBadge>
+                <NeoBadge variant="purple">Kolaborasi Aplikasi</NeoBadge>
                 <h2 className="text-xl font-black font-heading uppercase text-black">
                     Aplikasi Dibagikan ke Saya ({sharedApps.length})
                 </h2>
@@ -53,7 +53,7 @@ export default function SharedAppsSection({ sharedApps }: SharedAppsSectionProps
                                     {app.description || 'Ruang kerja bersama dengan kolaborator.'}
                                 </p>
                                 <span className="inline-block text-[11px] font-bold text-neutral-700 bg-[#F4F0EA] px-2 py-0.5 border border-black">
-                                    Akses Edit ke seluruh grup dan catatan di dalam aplikasi ini.
+                                    Akses Edit ke seluruh topik dan catatan di dalam aplikasi ini.
                                 </span>
                             </div>
                         </div>
@@ -61,6 +61,8 @@ export default function SharedAppsSection({ sharedApps }: SharedAppsSectionProps
                         <div className="p-4 pt-0">
                             <DebouncedPrefetchLink
                                 href={`/app/${app.id}`}
+                                prefetch="hover"
+                                cacheFor="1m"
                                 className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-neutral-100 border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-heading font-bold text-xs uppercase transition-all"
                             >
                                 Buka Catatan Kolaborasi

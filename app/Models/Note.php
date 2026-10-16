@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Support\Str;
 
 class Note extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'note_group_id',
@@ -22,14 +23,19 @@ class Note extends Model
         'deadline_at',
         'reminder_days_before',
         'reminder_sent_at',
+        'is_pinned',
+        'sort_order',
         'is_public',
         'public_token',
+        'public_permission',
     ];
 
     protected $casts = [
         'deadline_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
         'reminder_days_before' => 'integer',
+        'is_pinned' => 'boolean',
+        'sort_order' => 'integer',
         'is_public' => 'boolean',
     ];
 
@@ -38,6 +44,9 @@ class Note extends Model
         static::creating(function ($note) {
             if (empty($note->public_token)) {
                 $note->public_token = Str::random(32);
+            }
+            if (empty($note->public_permission)) {
+                $note->public_permission = 'read';
             }
         });
     }
@@ -62,13 +71,39 @@ class Note extends Model
         return $this->hasMany(ReminderLog::class);
     }
 
+    public function userReminders(): HasMany
+    {
+        return $this->hasMany(UserNoteReminder::class);
+    }
+
+    public function savedSharedLinks(): HasMany
+    {
+        return $this->hasMany(SavedSharedLink::class, 'item_id')->where('item_type', 'note');
+    }
+
     public function canUserEdit(?User $user): bool
     {
+        // 1. Direct note public edit access
+        if ($this->is_public && $this->public_permission === 'edit') {
+            return true;
+        }
+
+        // 2. Parent group public edit access
+        $group = $this->group;
+        if ($group && $group->is_public && $group->public_permission === 'edit') {
+            return true;
+        }
+
+        // 3. Parent workspace public edit access
+        $app = $group?->app;
+        if ($app && $app->is_public && $app->public_permission === 'edit') {
+            return true;
+        }
+
         if (! $user) {
             return false;
         }
 
-        $app = $this->group?->app;
         if ($app && $app->owner_id === $user->id) {
             return true;
         }
@@ -90,6 +125,9 @@ class Note extends Model
     public function canUserView(?User $user): bool
     {
         if ($this->is_public) {
+            return true;
+        }
+        if ($this->group?->is_public) {
             return true;
         }
         if ($this->group?->app?->is_public) {

@@ -1,9 +1,9 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
 import AdminLayout from '@/Layouts/AdminLayout';
 import NeoButton from '@/Components/UI/NeoButton';
 import { NeoBadge } from '@/Components/UI/NeoInput';
-import { Users, BookOpen, HardDrive, Bell, Sliders } from 'lucide-react';
+import { Users, BookOpen, HardDrive, Bell, Settings } from 'lucide-react';
 import { DashboardProps } from './types';
 import StatCard from './components/StatCard';
 import RecentRemindersCard from './components/RecentRemindersCard';
@@ -31,12 +31,12 @@ export default function Dashboard({
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Link href="/admin/settings">
+                    <DebouncedPrefetchLink href="/admin/settings">
                         <NeoButton variant="purple" size="sm">
-                            <Sliders className="w-3.5 h-3.5 mr-1" />
-                            Pengaturan Batasan File
+                            <Settings className="w-3.5 h-3.5 mr-1" />
+                            Modul Pengaturan
                         </NeoButton>
-                    </Link>
+                    </DebouncedPrefetchLink>
                 </div>
             </div>
 

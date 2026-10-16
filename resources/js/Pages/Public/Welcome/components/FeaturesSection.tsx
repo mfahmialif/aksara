@@ -4,20 +4,20 @@ import { BookOpen, CheckSquare, PenTool, Users } from 'lucide-react';
 
 export default function FeaturesSection() {
     return (
-        <section className="py-16 bg-[#FFFDF8] border-b-3 border-black">
+        <section className="py-10 sm:py-16 bg-[#FFFDF8] border-b-3 border-black">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="text-center max-w-3xl mx-auto mb-12">
-                    <h2 className="text-3xl sm:text-4xl font-black font-heading uppercase mb-3 text-black">
+                <div className="text-center max-w-3xl mx-auto mb-8 sm:mb-12">
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-black font-heading uppercase mb-2 sm:mb-3 text-black">
                         Editor Multi-Komponen Terpadu
                     </h2>
-                    <p className="text-sm sm:text-base text-neutral-700 font-medium">
+                    <p className="text-xs sm:text-base text-neutral-700 font-medium">
                         Satu catatan menampung teks kaya, checklist tugas interaktif dengan animasi confetti,
                         sketsa tangan bebas kanvas HTML5, serta pengunggah file dengan batasan dinamis.
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <NeoCard color="bg-white" shadowSize="md" hoverEffect className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                    <NeoCard color="bg-white" shadowSize="md" hoverEffect className="p-4 sm:p-6">
                         <div className="w-12 h-12 bg-[#FFDC58] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center mb-4">
                             <BookOpen className="w-6 h-6 text-black" />
                         </div>

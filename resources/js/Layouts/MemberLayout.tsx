@@ -8,6 +8,8 @@ interface MemberLayoutProps {
     maxWidth?: string;
     noPadding?: boolean;
     header?: React.ReactNode;
+    workspaceNav?: React.ReactNode;
+    workspaceFolders?: React.ReactNode;
 }
 
 export default function MemberLayout({
@@ -16,11 +18,13 @@ export default function MemberLayout({
     maxWidth = 'max-w-7xl',
     noPadding = false,
     header,
+    workspaceNav,
+    workspaceFolders,
 }: MemberLayoutProps) {
     return (
         <div className="min-h-screen bg-[#FFFDF8] flex flex-col font-sans">
             {title && <Head title={title} />}
-            <Navbar />
+            <Navbar workspaceNav={workspaceNav} workspaceFolders={workspaceFolders} />
 
             {header}
 

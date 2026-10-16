@@ -5,32 +5,57 @@ import {
 } from 'lucide-react';
 
 interface RichTextEditorProps {
-    value: string;
+    value?: string;
+    content?: string;
     onChange: (value: string) => void;
     editable?: boolean;
+    className?: string;
+    editorClassName?: string;
+    placeholder?: string;
 }
 
 export default function RichTextEditor({
     value,
+    content,
     onChange,
     editable = true,
+    className = '',
+    editorClassName = '',
+    placeholder = 'Ketik teks catatan Anda di sini...',
 }: RichTextEditorProps) {
     const editorRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
 
+    // Support both `value` and `content` prop interchangeably
+    const incomingValue = value !== undefined ? value : (content ?? '');
+
     useEffect(() => {
         if (editorRef.current && !isInternalUpdate.current) {
-            if (editorRef.current.innerHTML !== value) {
-                editorRef.current.innerHTML = value || '<p></p>';
+            const currentHtml = editorRef.current.innerHTML;
+            if (currentHtml !== incomingValue) {
+                const isBlank =
+                    !incomingValue ||
+                    incomingValue === '<p></p>' ||
+                    incomingValue === '<p><br></p>' ||
+                    incomingValue === '<br>' ||
+                    incomingValue.replace(/<[^>]*>/g, '').trim().length === 0;
+
+                editorRef.current.innerHTML = isBlank ? '' : incomingValue;
             }
         }
         isInternalUpdate.current = false;
-    }, [value]);
+    }, [incomingValue]);
 
     const handleInput = () => {
         if (editorRef.current) {
             isInternalUpdate.current = true;
-            onChange(editorRef.current.innerHTML);
+            const html = editorRef.current.innerHTML;
+            const text = editorRef.current.innerText?.trim();
+            const normalized =
+                !text && (!html || html === '<p></p>' || html === '<p><br></p>' || html === '<br>')
+                    ? ''
+                    : html;
+            onChange(normalized);
         }
     };
 
@@ -56,7 +81,7 @@ export default function RichTextEditor({
     };
 
     return (
-        <div className="w-full border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        <div className={`w-full border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${className}`}>
             {/* Toolbar */}
             {editable && (
                 <div className="flex flex-wrap items-center gap-1 p-2 bg-[#F4F0EA] border-b-2 border-black select-none">
@@ -220,6 +245,7 @@ export default function RichTextEditor({
                 ref={editorRef}
                 contentEditable={editable}
                 onInput={handleInput}
+                data-placeholder={placeholder}
                 className={`
                     p-4 min-h-[180px] focus:outline-none prose prose-slate max-w-none
                     font-sans text-base leading-relaxed
@@ -233,6 +259,7 @@ export default function RichTextEditor({
                     [&>pre]:bg-neutral-900 [&>pre]:text-neutral-100 [&>pre]:p-3 [&>pre]:border-2 [&>pre]:border-black [&>pre]:overflow-x-auto [&>pre]:mb-3
                     [&>a]:text-blue-700 [&>a]:underline [&>a]:font-bold
                     ${!editable ? 'bg-[#FFFDF8]' : ''}
+                    ${editorClassName}
                 `}
             />
         </div>

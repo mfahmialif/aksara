@@ -15,6 +15,7 @@ export default function PreferencesCard({ user }: PreferencesCardProps) {
     const [defaultReminderDays, setDefaultReminderDays] = useState(user.default_reminder_days || 1);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [avatarError, setAvatarError] = useState(false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -45,15 +46,18 @@ export default function PreferencesCard({ user }: PreferencesCardProps) {
 
                 {/* Account Info */}
                 <div className="flex items-center gap-4 p-4 bg-[#F4F0EA] border-2 border-black">
-                    {user.avatar ? (
+                    {user.avatar && !avatarError ? (
                         <img
                             src={user.avatar}
                             alt={user.name}
-                            className="w-14 h-14 border-2 border-black bg-amber-100"
+                            referrerPolicy="no-referrer"
+                            crossOrigin="anonymous"
+                            onError={() => setAvatarError(true)}
+                            className="w-14 h-14 border-2 border-black bg-amber-100 object-cover"
                         />
                     ) : (
                         <div className="w-14 h-14 bg-[#FFDC58] border-2 border-black flex items-center justify-center font-black text-xl">
-                            {user.name.charAt(0)}
+                            {user.name.charAt(0).toUpperCase()}
                         </div>
                     )}
                     <div>

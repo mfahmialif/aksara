@@ -5,15 +5,19 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Admin;
+use App\Models\AppNotification;
 use App\Models\Note;
 use App\Models\NoteApp;
 use App\Models\NoteAttachment;
 use App\Models\ReminderLog;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Models\UserNoteReminder;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
 class AdminDashboardController extends Controller
@@ -64,10 +68,141 @@ class AdminDashboardController extends Controller
     public function settings()
     {
         $settings = SystemSetting::getAll();
+        $users = User::select('id', 'name', 'email')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->limit(30)
+            ->get();
+        $notes = Note::select('id', 'title', 'category')
+            ->orderBy('id', 'desc')
+            ->limit(20)
+            ->get();
+
+        $totalSent = ReminderLog::where('status', 'sent')->count();
+        $totalFailed = ReminderLog::where('status', 'failed')->count();
+        $pendingTasks = Note::where('category', 'task')
+            ->whereNotNull('deadline_at')
+            ->whereNotNull('reminder_days_before')
+            ->whereNull('reminder_sent_at')
+            ->count();
+        $pendingPersonal = UserNoteReminder::whereNull('reminder_sent_at')->count();
+        $latestLog = ReminderLog::latest('sent_at')->first();
 
         return Inertia::render('Admin/Settings', [
             'settings' => $settings,
+            'users' => $users,
+            'notes' => $notes,
+            'reminder_stats' => [
+                'total_sent' => $totalSent,
+                'total_failed' => $totalFailed,
+                'pending_tasks' => $pendingTasks,
+                'pending_personal' => $pendingPersonal,
+                'mail_driver' => config('mail.default', 'log'),
+                'mail_from' => config('mail.from.address', 'admin@aksara.barakode.id'),
+                'last_run' => $latestLog ? $latestLog->created_at->translatedFormat('d M Y, H:i') : 'Belum ada data',
+            ],
         ]);
+    }
+
+    public function testReminder(Request $request)
+    {
+        $validated = $request->validate([
+            'recipient_email' => 'required|email',
+            'title' => 'required|string|max:150',
+            'note_id' => 'nullable|string',
+        ]);
+
+        $recipientEmail = $validated['recipient_email'];
+        $title = $validated['title'];
+
+        $note = null;
+        if (! empty($validated['note_id'])) {
+            $note = Note::find($validated['note_id']);
+        }
+        if (! $note) {
+            $note = Note::where('category', 'task')->first() ?: Note::first();
+        }
+
+        if (! $note) {
+            return back()->with('error', 'Belum ada catatan di database untuk dikaitkan dengan pengingat. Silakan buat minimal satu catatan terlebih dahulu.');
+        }
+
+        $now = now();
+        $mailStatus = 'sent';
+        $errorMessage = null;
+
+        SystemSetting::applyMailConfig();
+
+        // 1. Send test email using Laravel Mail
+        try {
+            Mail::raw(
+                "Halo,\n\nIni adalah pengujian pengingat deadline dari Sistem Aksara Notes (Modul Pengaturan Admin).\n\n"
+                ."Judul Tugas/Catatan: {$title}\n"
+                .'Waktu Pengujian: '.$now->translatedFormat('d F Y, H:i:s')."\n"
+                ."Penerima: {$recipientEmail}\n"
+                .'Mail Driver: '.config('mail.default')."\n\n"
+                ."Jika Anda menerima email ini, sistem engine pengingat dan mailer berjalan dengan normal.\n\n"
+                ."---\nAksara Notes - Neobrutalism System",
+                function ($message) use ($recipientEmail, $title) {
+                    $message->to($recipientEmail)
+                        ->subject("⏰ [TEST PENGINGAT] {$title}");
+                }
+            );
+        } catch (\Throwable $e) {
+            $mailStatus = 'failed';
+            $errorMessage = $e->getMessage();
+        }
+
+        // 2. Create ReminderLog entry
+        ReminderLog::create([
+            'note_id' => $note->id,
+            'recipient_email' => $recipientEmail,
+            'status' => $mailStatus,
+            'scheduled_for' => $now,
+            'sent_at' => $mailStatus === 'sent' ? $now : null,
+            'error_message' => $errorMessage,
+        ]);
+
+        // 3. Create In-App Notification if user exists
+        $user = User::where('email', $recipientEmail)->first();
+        if ($user) {
+            AppNotification::create([
+                'user_id' => $user->id,
+                'title' => '⏰ [TEST] Pengingat Catatan: '.$title,
+                'message' => 'Notifikasi uji coba pengingat dari Admin untuk catatan "'.$title.'". Sistem pengingat berfungsi dengan baik.',
+                'type' => 'reminder',
+                'action_url' => route('notes.show', $note->id),
+                'read_at' => null,
+                'is_archived' => false,
+            ]);
+        }
+
+        ActivityLogger::log('TEST_REMINDER', "Menguji pengiriman notifikasi pengingat ke {$recipientEmail} (Status: {$mailStatus})", $note, [
+            'status' => $mailStatus,
+            'error' => $errorMessage,
+        ]);
+
+        if ($mailStatus === 'failed') {
+            return back()->with('error', "Gagal mengirim pengingat ke {$recipientEmail}: {$errorMessage}");
+        }
+
+        return back()->with('success', "Test pengingat berhasil diproses ke {$recipientEmail}! Log pengingat dan notifikasi in-app telah dicatat.");
+    }
+
+    public function runReminders()
+    {
+        try {
+            Artisan::call('notes:send-reminders');
+            $output = Artisan::output();
+
+            ActivityLogger::log('RUN_REMINDERS_ENGINE', 'Menjalankan engine pengecekan pengingat secara manual dari Pengaturan Admin');
+
+            $cleanOutput = trim($output) ?: 'Pengecekan pengingat selesai tanpa catatan jatuh tempo.';
+
+            return back()->with('success', "Engine pengingat berhasil dijalankan! Hasil: {$cleanOutput}");
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal menjalankan engine pengingat: '.$e->getMessage());
+        }
     }
 
     public function updateSettings(Request $request)
@@ -87,6 +222,84 @@ class AdminDashboardController extends Controller
         ActivityLogger::log('UPDATE_SETTINGS', 'Memperbarui pengaturan batasan ukuran file dan ekstensi keamanan sistem', null, $validated);
 
         return back()->with('success', 'Pengaturan batasan file berhasil diperbarui.');
+    }
+
+    public function updateMailSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'mail_mailer' => 'required|in:smtp,log',
+            'mail_host' => 'nullable|string|max:191',
+            'mail_port' => 'nullable|integer|min:1|max:65535',
+            'mail_encryption' => 'nullable|in:tls,ssl,none',
+            'mail_username' => 'nullable|string|max:191',
+            'mail_password' => 'nullable|string|max:191',
+            'mail_from_address' => 'required|email|max:191',
+            'mail_from_name' => 'required|string|max:100',
+        ]);
+
+        SystemSetting::set('mail_mailer', $validated['mail_mailer'], 'Default Mail Driver');
+        SystemSetting::set('mail_host', $validated['mail_host'] ?? '', 'SMTP Host Server');
+        SystemSetting::set('mail_port', (string) ($validated['mail_port'] ?? 587), 'SMTP Port');
+        SystemSetting::set('mail_encryption', $validated['mail_encryption'] ?? 'tls', 'SMTP Encryption');
+        SystemSetting::set('mail_username', $validated['mail_username'] ?? '', 'SMTP Username');
+        if (isset($validated['mail_password']) && $validated['mail_password'] !== '') {
+            SystemSetting::set('mail_password', $validated['mail_password'], 'SMTP Password / App Password');
+        }
+        SystemSetting::set('mail_from_address', $validated['mail_from_address'], 'Default Sender Email');
+        SystemSetting::set('mail_from_name', $validated['mail_from_name'], 'Default Sender Name');
+
+        SystemSetting::applyMailConfig();
+        $this->syncMailToEnv($validated);
+
+        ActivityLogger::log('UPDATE_MAIL_SETTINGS', 'Memperbarui konfigurasi SMTP & Mailer server', null, [
+            'mail_mailer' => $validated['mail_mailer'],
+            'mail_host' => $validated['mail_host'] ?? '',
+            'mail_port' => $validated['mail_port'] ?? '',
+            'mail_encryption' => $validated['mail_encryption'] ?? '',
+            'mail_username' => $validated['mail_username'] ?? '',
+            'mail_from_address' => $validated['mail_from_address'],
+            'mail_from_name' => $validated['mail_from_name'],
+        ]);
+
+        return back()->with('success', 'Konfigurasi SMTP berhasil disimpan dan langsung diterapkan ke sistem mailer!');
+    }
+
+    private function syncMailToEnv(array $values): void
+    {
+        $envPath = base_path('.env');
+        if (! file_exists($envPath) || ! is_writable($envPath)) {
+            return;
+        }
+
+        try {
+            $envContent = file_get_contents($envPath);
+
+            $mapping = [
+                'MAIL_MAILER' => $values['mail_mailer'] ?? 'smtp',
+                'MAIL_HOST' => $values['mail_host'] ?? '',
+                'MAIL_PORT' => $values['mail_port'] ?? '587',
+                'MAIL_USERNAME' => $values['mail_username'] ?? '',
+                'MAIL_ENCRYPTION' => ($values['mail_encryption'] ?? 'tls') === 'none' ? 'null' : ($values['mail_encryption'] ?? 'tls'),
+                'MAIL_FROM_ADDRESS' => '"'.($values['mail_from_address'] ?? 'no-reply@aksara.local').'"',
+                'MAIL_FROM_NAME' => '"'.($values['mail_from_name'] ?? 'Aksara Notes').'"',
+            ];
+
+            if (! empty($values['mail_password'])) {
+                $mapping['MAIL_PASSWORD'] = '"'.$values['mail_password'].'"';
+            }
+
+            foreach ($mapping as $key => $val) {
+                if (preg_match("/^{$key}=.*/m", $envContent)) {
+                    $envContent = preg_replace("/^{$key}=.*/m", "{$key}={$val}", $envContent);
+                } else {
+                    $envContent .= "\n{$key}={$val}";
+                }
+            }
+
+            file_put_contents($envPath, $envContent);
+        } catch (\Throwable $e) {
+            // Silently ignore if file permission issues arise
+        }
     }
 
     public function users()

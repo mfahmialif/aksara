@@ -1,58 +1,85 @@
 // resources/js/Components/DebouncedPrefetchLink.tsx
-import React, { useRef, useCallback } from 'react';
-import { Link, router, InertiaLinkProps } from '@inertiajs/react';
+import React, { forwardRef } from 'react';
+import { Link, InertiaLinkProps } from '@inertiajs/react';
 
-interface Props extends InertiaLinkProps {
-  debounceMs?: number;
-  cacheFor?: string | number;
+export interface DebouncedPrefetchLinkProps extends InertiaLinkProps {
+    debounceMs?: number;
+    cacheFor?: string | number;
 }
 
-export default function DebouncedPrefetchLink({
-  href,
-  debounceMs = 200,
-  cacheFor = '30s',
-  onMouseEnter,
-  onMouseLeave,
-  children,
-  ...props
-}: Props) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+// Check if URL is internal/same-origin or relative
+const isSameOriginOrRelative = (urlStr: string): boolean => {
+    if (!urlStr) return false;
+    if (
+        urlStr.startsWith('#') ||
+        urlStr.startsWith('mailto:') ||
+        urlStr.startsWith('tel:') ||
+        urlStr.startsWith('javascript:')
+    ) {
+        return false;
+    }
+    if (urlStr.startsWith('/') && !urlStr.startsWith('//')) {
+        return true;
+    }
+    try {
+        const parsed = new URL(urlStr, typeof window !== 'undefined' ? window.location.href : 'http://localhost');
+        return typeof window !== 'undefined' ? parsed.origin === window.location.origin : true;
+    } catch {
+        return false;
+    }
+};
 
-  const handleMouseEnter = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>) => {
-      if (onMouseEnter) onMouseEnter(e);
+// Normalize absolute same-origin URLs (e.g. from Laravel paginator links) to clean relative paths
+const normalizeUrl = (urlStr: string): string => {
+    if (!urlStr) return '';
+    if (urlStr.startsWith('/') && !urlStr.startsWith('//')) return urlStr;
+    try {
+        const parsed = new URL(urlStr, typeof window !== 'undefined' ? window.location.href : 'http://localhost');
+        if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
+            return parsed.pathname + parsed.search + parsed.hash;
+        }
+    } catch {}
+    return urlStr;
+};
 
-      timerRef.current = setTimeout(() => {
-        router.prefetch(
-          href.toString(),
-          { method: 'get' },
-          { cacheFor }
+const DebouncedPrefetchLink = forwardRef<HTMLAnchorElement, DebouncedPrefetchLinkProps>(
+    (
+        {
+            href,
+            debounceMs,
+            cacheFor = '1m',
+            prefetch = 'hover',
+            children,
+            ...props
+        },
+        ref
+    ) => {
+        const rawUrl = typeof href === 'string' ? href : (href && 'url' in href ? href.url : '');
+        const targetUrl = normalizeUrl(rawUrl);
+        const isPrefetchable = Boolean(
+            targetUrl &&
+            isSameOriginOrRelative(rawUrl) &&
+            (props.method === undefined || props.method.toLowerCase() === 'get')
         );
-      }, debounceMs);
-    },
-    [href, debounceMs, cacheFor, onMouseEnter]
-  );
 
-  const handleMouseLeave = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>) => {
-      if (onMouseLeave) onMouseLeave(e);
+        // Native Inertia prefetch: defaults to 'hover' (uses Inertia's built-in hoverDelay debounce).
+        // Disallow 'mount' by default on list items/paginations to prevent freezing the server.
+        const linkPrefetchProp = isPrefetchable ? (prefetch ?? 'hover') : false;
 
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    },
-    [onMouseLeave]
-  );
+        return (
+            <Link
+                ref={ref}
+                href={targetUrl || href}
+                prefetch={linkPrefetchProp}
+                cacheFor={cacheFor}
+                {...props}
+            >
+                {children}
+            </Link>
+        );
+    }
+);
 
-  return (
-    <Link
-      href={href}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      {...props}
-    >
-      {children}
-    </Link>
-  );
-}
+DebouncedPrefetchLink.displayName = 'DebouncedPrefetchLink';
+
+export default DebouncedPrefetchLink;

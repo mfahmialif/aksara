@@ -24,6 +24,7 @@ export default function CreateAppModal({ isOpen, onClose }: CreateAppModalProps)
     const [name, setName] = useState('');
     const [colorTheme, setColorTheme] = useState('yellow');
     const [description, setDescription] = useState('');
+    const [topicLabel, setTopicLabel] = useState('Topik');
     const [isPublic, setIsPublic] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -41,12 +42,14 @@ export default function CreateAppModal({ isOpen, onClose }: CreateAppModalProps)
                 name: name.trim(),
                 color_theme: colorTheme,
                 description: description.trim() || null,
+                topic_label: topicLabel.trim() || 'Topik',
                 is_public: isPublic,
             },
             {
                 onSuccess: () => {
                     setName('');
                     setDescription('');
+                    setTopicLabel('Topik');
                     onClose();
                     setSubmitting(false);
                 },
@@ -78,6 +81,32 @@ export default function CreateAppModal({ isOpen, onClose }: CreateAppModalProps)
                     onChange={(e) => setName(e.target.value)}
                     required
                 />
+
+                {/* Custom Topic Term */}
+                <div>
+                    <NeoInput
+                        label="Istilah Pengelompokan / Topik"
+                        placeholder="Contoh: Topik, Mata Kuliah, Kategori, Proyek..."
+                        value={topicLabel}
+                        onChange={(e) => setTopicLabel(e.target.value)}
+                        maxLength={50}
+                    />
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase">Pilihan Cepat:</span>
+                        {['Topik', 'Mata Kuliah', 'Kategori', 'Proyek', 'Modul', 'Bab'].map((preset) => (
+                            <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setTopicLabel(preset)}
+                                className={`text-[10px] font-heading font-black px-2 py-0.5 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all ${
+                                    topicLabel === preset ? 'bg-[#FFDC58] -translate-y-0.5' : 'bg-white hover:bg-neutral-100'
+                                }`}
+                            >
+                                {preset}
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
                 {/* Visual Color Palette Swatches & Select */}
                 <div className="space-y-2">
