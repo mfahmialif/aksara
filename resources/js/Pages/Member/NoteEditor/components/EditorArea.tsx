@@ -96,7 +96,7 @@ export default function EditorArea({
                                 </button>
                             )}
                             <span className="text-xs font-bold text-neutral-500 uppercase">
-                                Grup: {selectedNote.group?.name}
+                                Grup: {selectedNote.group?.name || groups.find((g) => g.id === selectedNote.note_group_id)?.name || 'Grup'}
                             </span>
                         </div>
 

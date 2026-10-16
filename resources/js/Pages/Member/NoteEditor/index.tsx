@@ -108,9 +108,9 @@ export default function NoteEditor({
 
     // Filtered notes by group and search query
     const filteredNotes = allNotes.filter((note) => {
-        const matchesGroup = activeGroupId === 'all' || note.group_id === activeGroupId;
+        const matchesGroup = activeGroupId === 'all' || note.note_group_id === activeGroupId;
         const matchesSearch =
-            !searchQuery || note.title.toLowerCase().includes(searchQuery.toLowerCase());
+            !searchQuery || (note.title || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory =
             categoryFilter === 'all' || note.category === categoryFilter;
         return matchesGroup && matchesSearch && matchesCategory;
@@ -118,7 +118,7 @@ export default function NoteEditor({
 
     // Notes in the active note's group (for quick switching sidebar in editor)
     const currentGroupNotes = currentNote
-        ? allNotes.filter((n) => n.group_id === currentNote.group_id)
+        ? allNotes.filter((n) => n.note_group_id === currentNote.note_group_id)
         : [];
 
     const handleSelectNote = (note: Note) => {
@@ -326,7 +326,7 @@ export default function NoteEditor({
                                         Catatan di Grup Ini
                                     </h3>
                                     <p className="text-[11px] text-neutral-500 font-bold truncate max-w-[170px]">
-                                        {currentNote?.group?.name || 'Grup'} ({currentGroupNotes.length})
+                                        {currentNote?.group?.name || groups.find((g) => g.id === currentNote?.note_group_id)?.name || 'Grup'} ({currentGroupNotes.length})
                                     </p>
                                 </div>
                                 <button
@@ -340,7 +340,7 @@ export default function NoteEditor({
                             </div>
 
                             {/* Create new note in current group shortcut */}
-                            {canEdit && currentNote && (
+                            {can_edit && currentNote && (
                                 <button
                                     type="button"
                                     onClick={() => handleCreateNote(currentNote.note_group_id, 'regular')}
