@@ -12,6 +12,8 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\GoogleProvider;
 use Tests\TestCase;
 
 class CollaborativeNoteTest extends TestCase
@@ -177,40 +179,40 @@ class CollaborativeNoteTest extends TestCase
     }
 
     /**
-     * Test 6: Google OAuth Redirect and Simulated Consent Flow
+     * Test 6: Google OAuth Alert on Missing Config & Real Callback Login
      */
-    public function test_google_oauth_redirect_and_consent_login(): void
+    public function test_google_oauth_redirect_and_callback(): void
     {
-        // 1. Redirect to Google without keys routes to consent screen
+        // 1. Without credentials configured, redirects to welcome with alert
+        config(['services.google.client_id' => '']);
+        config(['services.google.client_secret' => '']);
+
         $redirectResponse = $this->get('/auth/google/redirect');
-        $redirectResponse->assertRedirect(route('auth.google.consent'));
+        $redirectResponse->assertRedirect(route('welcome'));
+        $redirectResponse->assertSessionHas('error', 'Layanan login Google belum diaktifkan. Silakan hubungi Administrator untuk mengaktifkannya.');
 
-        // 2. Consent page renders
-        $consentResponse = $this->get('/auth/google/consent');
-        $consentResponse->assertStatus(200);
+        // 2. Real Google Callback: Mock Socialite Google Provider
+        $abstractUser = \Mockery::mock(\Laravel\Socialite\Two\User::class);
+        $abstractUser->shouldReceive('getId')->andReturn('google_uid_9999');
+        $abstractUser->shouldReceive('getName')->andReturn('Real Google User');
+        $abstractUser->shouldReceive('getEmail')->andReturn('realgoogle@gmail.com');
+        $abstractUser->shouldReceive('getAvatar')->andReturn('https://lh3.googleusercontent.com/avatar.jpg');
 
-        // 3. User selects an existing account to log in
-        $existingUser = User::first();
-        $loginResponse = $this->post('/auth/google/consent', [
-            'user_id' => $existingUser->id,
-        ]);
-        $loginResponse->assertRedirect(route('apps.index'));
-        $this->assertAuthenticatedAs($existingUser, 'web');
+        $provider = \Mockery::mock(GoogleProvider::class);
+        $provider->shouldReceive('user')->andReturn($abstractUser);
 
-        // Logout
-        $this->post('/logout');
-        $this->assertGuest('web');
+        Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
 
-        // 4. User logs in with a new custom Google email
-        $newLoginResponse = $this->post('/auth/google/consent', [
-            'name' => 'Fauzi Rahmat',
-            'email' => 'fauzi@example.com',
-        ]);
-        $newLoginResponse->assertRedirect(route('apps.index'));
+        $callbackResponse = $this->get('/auth/google/callback');
+        $callbackResponse->assertRedirect(route('apps.index'));
         $this->assertAuthenticated('web');
-        $this->assertDatabaseHas('users', ['email' => 'fauzi@example.com']);
+        $this->assertDatabaseHas('users', [
+            'email' => 'realgoogle@gmail.com',
+            'google_id' => 'google_uid_9999',
+            'name' => 'Real Google User',
+        ]);
 
-        // 5. Direct admin login URL remains valid
+        // 3. Direct admin login URL remains valid and isolated
         $adminLoginResponse = $this->get('/admin/login');
         $adminLoginResponse->assertStatus(200);
     }

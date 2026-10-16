@@ -24,8 +24,6 @@ Route::get('/s/note/{slug_token}', [PublicController::class, 'showPublicNote'])-
 // --- Member Authentication Routes ---
 Route::get('/login', fn () => redirect()->route('welcome'))->name('login');
 Route::get('/auth/google/redirect', [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
-Route::get('/auth/google/consent', [AuthController::class, 'googleConsent'])->name('auth.google.consent');
-Route::post('/auth/google/consent', [AuthController::class, 'processGoogleConsent'])->name('auth.google.consent.process');
 Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 Route::post('/auth/dev-login', [AuthController::class, 'devLogin'])->name('auth.dev-login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

@@ -1,15 +1,17 @@
 import React from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
+import { PageProps } from '@/types';
 import Navbar from '@/Components/Navbar';
 import NeoButton from '@/Components/UI/NeoButton';
 import NeoCard from '@/Components/UI/NeoCard';
 import { NeoBadge } from '@/Components/UI/NeoInput';
 import {
     BookOpen, CheckSquare, PenTool, Sparkles,
-    ArrowRight, Users
+    ArrowRight, Users, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 
 export default function Welcome() {
+    const { flash } = usePage<PageProps>().props;
 
     return (
         <div className="min-h-screen bg-[#FFFDF8] flex flex-col font-sans">
@@ -46,6 +48,39 @@ export default function Welcome() {
                             dan buat catatan lengkap dengan <em>Rich Text</em>, <em>Checklist Interaktif</em>, <em>Sketsa Kanvas</em>,
                             serta lampiran multi-file bebas.
                         </p>
+
+                        {/* Alert Banner if Google OAuth is not configured or error occurs */}
+                        {flash.error && (
+                            <div className="max-w-xl mx-auto mb-8 p-4 bg-[#FFE8E8] border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left flex items-start gap-3.5">
+                                <div className="w-8 h-8 bg-rose-500 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center shrink-0 mt-0.5">
+                                    <AlertTriangle className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-heading font-black text-sm uppercase text-black">
+                                        Pemberitahuan Sistem
+                                    </h4>
+                                    <p className="text-xs sm:text-sm font-bold text-neutral-800 mt-1 leading-snug">
+                                        {flash.error}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {flash.success && (
+                            <div className="max-w-xl mx-auto mb-8 p-4 bg-[#E8F8EE] border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left flex items-start gap-3.5">
+                                <div className="w-8 h-8 bg-emerald-500 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center shrink-0 mt-0.5">
+                                    <CheckCircle2 className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-heading font-black text-sm uppercase text-black">
+                                        Berhasil
+                                    </h4>
+                                    <p className="text-xs sm:text-sm font-bold text-neutral-800 mt-1 leading-snug">
+                                        {flash.success}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Primary Single CTA Button for Google OAuth */}
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
