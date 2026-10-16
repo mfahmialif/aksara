@@ -8,7 +8,7 @@ import DrawingCanvas from '@/Components/Editor/DrawingCanvas';
 import AttachmentsManager from '@/Components/Editor/AttachmentsManager';
 import {
     Users, Share2, Trash2, Save, FileText, CheckSquare,
-    PenTool, FileUp, Plus
+    PenTool, FileUp, Plus, ArrowLeft
 } from 'lucide-react';
 import { MobileTab } from '../types';
 
@@ -18,7 +18,7 @@ interface EditorAreaProps {
     canEdit: boolean;
     user: User | null;
     systemSettings?: SystemSettings;
-    mobileTab: MobileTab;
+    mobileTab?: MobileTab;
     editorTitle: string;
     setEditorTitle: (t: string) => void;
     editorCategory: 'regular' | 'task';
@@ -42,6 +42,7 @@ interface EditorAreaProps {
     onOpenNoteCollab: () => void;
     onOpenNoteShare: () => void;
     onCreateNote: (groupId: number, category: 'regular' | 'task') => void;
+    onBackToExplorer?: () => void;
 }
 
 export default function EditorArea({
@@ -74,14 +75,26 @@ export default function EditorArea({
     onOpenNoteCollab,
     onOpenNoteShare,
     onCreateNote,
+    onBackToExplorer,
 }: EditorAreaProps) {
     return (
-        <div className={`lg:col-span-6 space-y-4 ${mobileTab !== 'editor' ? 'hidden lg:block' : 'block'}`}>
+        <div className="w-full space-y-4">
             {selectedNote ? (
                 <div className="border-[3px] border-black bg-white p-5 sm:p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] space-y-5">
                     {/* Editor Top Bar */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b-2 border-black">
                         <div className="flex items-center gap-2">
+                            {onBackToExplorer && (
+                                <button
+                                    type="button"
+                                    onClick={onBackToExplorer}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FFDC58] hover:bg-[#ffe066] border-2 border-black font-heading font-black text-xs uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 active:translate-x-1 active:translate-y-1 transition-all cursor-pointer mr-1"
+                                    title="Kembali ke Jelajah Catatan"
+                                >
+                                    <ArrowLeft className="w-3.5 h-3.5" />
+                                    <span>Jelajah Catatan</span>
+                                </button>
+                            )}
                             <span className="text-xs font-bold text-neutral-500 uppercase">
                                 Grup: {selectedNote.group?.name}
                             </span>

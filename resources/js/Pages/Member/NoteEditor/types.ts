@@ -8,4 +8,5 @@ export interface NoteEditorProps {
     can_edit: boolean;
 }
 
+export type ViewMode = 'explorer' | 'editor';
 export type MobileTab = 'groups' | 'notes' | 'editor';
