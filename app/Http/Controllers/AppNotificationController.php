@@ -41,7 +41,7 @@ class AppNotificationController extends Controller
                 ->withQueryString();
         }
 
-        return Inertia::render('App/Notifications', [
+        return Inertia::render('Member/Notifications', [
             'notifications' => $notifications,
             'unread_count' => $unreadCount,
             'archived_count' => $archivedCount,

@@ -9,7 +9,11 @@ const appName = import.meta.env.VITE_APP_NAME || 'Aksara';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) => resolvePageComponent(`./Pages/${name}.tsx`, import.meta.glob('./Pages/**/*.tsx')),
+    resolve: (name) =>
+        resolvePageComponent(
+            [`./Pages/${name}.tsx`, `./Pages/${name}/index.tsx`, `./Pages/${name}/Index.tsx`],
+            import.meta.glob('./Pages/**/*.tsx')
+        ),
     setup({ el, App, props }) {
         const root = createRoot(el);
         root.render(<App {...props} />);

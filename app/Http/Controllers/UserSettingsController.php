@@ -12,7 +12,7 @@ class UserSettingsController extends Controller
     {
         $user = Auth::user();
 
-        return Inertia::render('Settings/Preferences', [
+        return Inertia::render('Member/Preferences', [
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,

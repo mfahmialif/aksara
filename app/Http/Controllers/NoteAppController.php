@@ -53,7 +53,7 @@ class NoteAppController extends Controller
             ->with(['group.app.owner', 'attachments'])
             ->get();
 
-        return Inertia::render('App/Index', [
+        return Inertia::render('Member/Workspace', [
             'my_apps' => $myApps,
             'shared_apps' => $sharedApps,
             'standalone_notes' => $standaloneSharedNotes,
@@ -130,7 +130,7 @@ class NoteAppController extends Controller
         $isOwner = $app->owner_id === $user->id;
         $canEdit = $app->canUserEdit($user);
 
-        return Inertia::render('App/Show', [
+        return Inertia::render('Member/NoteEditor', [
             'app' => $app,
             'groups' => $groups,
             'selected_note' => $selectedNote,
