@@ -15,7 +15,7 @@ export default function Welcome() {
 
     return (
         <div className="min-h-screen bg-[#FFFDF8] flex flex-col font-sans">
-            <Head title="Sistem Aplikasi Catatan Kolaboratif" />
+            <Head title="Aksara - Catatan & Tugas Kolaboratif" />
             <Navbar />
 
             <main className="flex-1">
@@ -27,17 +27,17 @@ export default function Welcome() {
 
                     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
                         <div className="inline-flex items-center gap-2 mb-6">
-                            <NeoBadge variant="purple" className="text-xs px-3 py-1">
+                            <NeoBadge variant="purple" className="text-xs px-3 py-1 font-mono">
                                 <Sparkles className="w-3.5 h-3.5 mr-1" />
-                                Neobrutalism Edition
+                                aksara.barakode.id
                             </NeoBadge>
                             <NeoBadge variant="mint" className="text-xs px-3 py-1">
-                                Hierarki 3-Level
+                                Neobrutalism Edition
                             </NeoBadge>
                         </div>
 
                         <h1 className="text-4xl sm:text-6xl md:text-7xl font-black font-heading text-black tracking-tight leading-[1.05] mb-6 uppercase">
-                            Catatan & Tugas Tanpa Batas,{' '}
+                            Aksara: Catatan & Tugas,{' '}
                             <span className="bg-[#FFDC58] px-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] inline-block mt-2">
                                 Kolaborasi Nyata.
                             </span>
@@ -218,10 +218,19 @@ export default function Welcome() {
             </main>
 
             {/* FOOTER */}
-            <footer className="border-t-2 border-black bg-white py-8">
-                <div className="max-w-7xl mx-auto px-4 text-center">
-                    <p className="text-xs font-bold text-neutral-700 uppercase tracking-widest font-heading">
-                        Sistem Catatan Kolaboratif &bull; Neobrutalism Design Standard &bull; Laravel + Inertia React
+            <footer className="border-t-2 border-black bg-white py-6">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center p-1 overflow-hidden">
+                            <img src="/logo.png" alt="Aksara" className="w-full h-full object-contain" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-heading font-black text-sm text-black uppercase tracking-tight">Aksara</span>
+                            <span className="text-xs font-mono font-bold text-neutral-500">aksara.barakode.id</span>
+                        </div>
+                    </div>
+                    <p className="text-xs font-bold text-neutral-600 uppercase tracking-wider font-heading text-center sm:text-right">
+                        Sistem Catatan Kolaboratif &bull; Neobrutalism
                     </p>
                 </div>
             </footer>

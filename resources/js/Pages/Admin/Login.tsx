@@ -3,7 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { NeoInput } from '@/Components/UI/NeoInput';
 import NeoButton from '@/Components/UI/NeoButton';
 import NeoCard from '@/Components/UI/NeoCard';
-import { Shield, Lock, ArrowLeft, KeyRound } from 'lucide-react';
+import { Lock, ArrowLeft, KeyRound } from 'lucide-react';
 
 interface LoginProps {
     errors?: Record<string, string>;
@@ -30,7 +30,7 @@ export default function Login({ errors = {} }: LoginProps) {
 
     return (
         <div className="min-h-screen bg-[#FFFDF8] flex flex-col justify-center items-center p-4 font-sans">
-            <Head title="Login Admin Internal" />
+            <Head title="Login Admin Aksara" />
 
             <div className="w-full max-w-md">
                 <div className="text-center mb-6">
@@ -42,15 +42,15 @@ export default function Login({ errors = {} }: LoginProps) {
                         Kembali ke Halaman Utama
                     </Link>
 
-                    <div className="w-14 h-14 bg-[#FF6B6B] border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center mx-auto mb-3">
-                        <Shield className="w-7 h-7 text-white" />
+                    <div className="w-16 h-16 bg-black border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center mx-auto mb-3 p-1.5 overflow-hidden">
+                        <img src="/logo.png" alt="Aksara" className="w-full h-full object-contain" />
                     </div>
 
                     <h1 className="text-2xl sm:text-3xl font-black font-heading uppercase tracking-tight text-black">
-                        Panel Admin Internal
+                        Panel Admin Aksara
                     </h1>
                     <p className="text-xs text-neutral-600 font-medium mt-1">
-                        Akses khusus staf pengelola sistem catatan kolaboratif.
+                        Akses khusus staf internal pengelolaan sistem aksara.barakode.id
                     </p>
                 </div>
 

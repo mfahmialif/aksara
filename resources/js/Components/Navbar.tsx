@@ -3,7 +3,7 @@ import { Link, usePage, router } from '@inertiajs/react';
 import { PageProps, AppNotification } from '@/types';
 import NeoButton from './UI/NeoButton';
 import {
-    BookOpen, LogOut, Settings, Sparkles, User as UserIcon,
+    LogOut, Settings, Sparkles, User as UserIcon,
     CheckCircle2, AlertTriangle, X, Bell, Check, Archive, Clock, ExternalLink
 } from 'lucide-react';
 import DebouncedPrefetchLink from './DebouncedPrefetchLink';
@@ -55,13 +55,16 @@ export default function Navbar() {
                 <div className="flex items-center justify-between h-16">
                     {/* Brand */}
                     <div className="flex items-center gap-6">
-                        <Link href={user ? '/app' : '/'} className="flex items-center gap-2.5 group">
-                            <div className="w-10 h-10 bg-[#FFDC58] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center group-hover:rotate-6 transition-transform">
-                                <BookOpen className="w-5 h-5 text-black" />
+                        <Link href={user ? '/app' : '/'} className="flex items-center gap-3 group">
+                            <div className="w-10 h-10 bg-black border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center p-1 group-hover:rotate-6 transition-transform">
+                                <img src="/logo.png" alt="Aksara" className="w-full h-full object-contain" />
                             </div>
-                            <span className="font-heading font-black text-xl tracking-tight text-black flex items-center gap-1.5">
-                                Catatan<span className="bg-[#A388EE] px-1 border-2 border-black text-sm">PRO</span>
-                            </span>
+                            <div className="flex flex-col">
+                                <span className="font-heading font-black text-xl tracking-tight text-black leading-none">
+                                    Aksara
+                                </span>
+                                <span className="text-[10px] font-bold text-neutral-500 font-mono tracking-wider">aksara.barakode.id</span>
+                            </div>
                         </Link>
 
                         {user && (

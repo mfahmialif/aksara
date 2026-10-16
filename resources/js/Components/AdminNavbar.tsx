@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { PageProps } from '@/types';
-import { Shield, LayoutDashboard, Sliders, Users, Bell, LogOut, ExternalLink, CheckCircle2, AlertTriangle, X, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Sliders, Users, Bell, LogOut, ExternalLink, CheckCircle2, AlertTriangle, X, ClipboardList } from 'lucide-react';
 import NeoButton from './UI/NeoButton';
 
 export default function AdminNavbar() {
@@ -24,15 +24,15 @@ export default function AdminNavbar() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center gap-6">
-                        <Link href="/admin" className="flex items-center gap-2">
-                            <div className="w-10 h-10 bg-[#FF6B6B] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center">
-                                <Shield className="w-5 h-5 text-white" />
+                        <Link href="/admin" className="flex items-center gap-3">
+                            <div className="w-10 h-10 border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center overflow-hidden bg-black p-1">
+                                <img src="/logo.png" alt="Aksara Admin" className="w-full h-full object-contain" />
                             </div>
                             <div>
                                 <span className="font-heading font-black text-lg tracking-tight text-black block leading-none">
-                                    ADMIN<span className="text-[#FF6B6B]">CONSOLE</span>
+                                    AKSARA<span className="text-[#FF6B6B]">ADMIN</span>
                                 </span>
-                                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Internal Portal</span>
+                                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest font-mono">aksara.barakode.id</span>
                             </div>
                         </Link>
 
