@@ -2,7 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Models\ActivityLog;
 use App\Models\Admin;
+use App\Models\AppNotification;
 use App\Models\Collaborator;
 use App\Models\Note;
 use App\Models\NoteApp;
@@ -237,6 +239,138 @@ class DatabaseSeeder extends Seeder
             'scheduled_for' => now()->subHours(5),
             'sent_at' => now()->subHours(5),
             'error_message' => null,
+        ]);
+
+        // 9. Sample In-App Notifications Pro for Members
+        AppNotification::create([
+            'user_id' => $userBudi->id,
+            'title' => '⏰ Pengingat Deadline: Makalah Etika AI & Masa Depan Manusia',
+            'message' => 'Catatan tugas Anda mendekati batas waktu penyerahan. Harap lengkapi checklist Bab 3 dan Kesimpulan sebelum deadline.',
+            'type' => 'reminder',
+            'action_url' => route('notes.show', $noteMakalah->id),
+            'read_at' => null,
+            'is_archived' => false,
+            'created_at' => now()->subHours(2),
+        ]);
+
+        AppNotification::create([
+            'user_id' => $userBudi->id,
+            'title' => '👥 Kolaborasi Baru Diterima',
+            'message' => 'Siti Rahma telah menerima undangan dan bergabung ke Ruang Kerja Catatan Tugas Kuliah Anda.',
+            'type' => 'collaboration',
+            'action_url' => route('apps.show', $appKuliah->id),
+            'read_at' => null,
+            'is_archived' => false,
+            'created_at' => now()->subHours(4),
+        ]);
+
+        AppNotification::create([
+            'user_id' => $userBudi->id,
+            'title' => '⚙️ Pengaturan Pengingat Berhasil Disimpan',
+            'message' => 'Preferensi default pengingat catatan tugas Anda telah disetel menjadi 1 hari sebelum deadline.',
+            'type' => 'system',
+            'action_url' => route('settings.preferences'),
+            'read_at' => now()->subDay(),
+            'is_archived' => true,
+            'created_at' => now()->subDays(2),
+        ]);
+
+        AppNotification::create([
+            'user_id' => $userSiti->id,
+            'title' => '👥 Undangan Kolaborasi Ruang Kerja',
+            'message' => 'Budi Santoso mengundang Anda berkolaborasi pada Ruang Kerja "Catatan Tugas Kuliah".',
+            'type' => 'collaboration',
+            'action_url' => route('apps.show', $appKuliah->id),
+            'read_at' => null,
+            'is_archived' => false,
+            'created_at' => now()->subHours(3),
+        ]);
+
+        AppNotification::create([
+            'user_id' => $userDoni->id,
+            'title' => '👥 Undangan Kolaborasi Catatan Khusus',
+            'message' => 'Budi Santoso mengundang Anda berkolaborasi khusus pada catatan "Spesifikasi Integrasi Payment Gateway".',
+            'type' => 'collaboration',
+            'action_url' => route('notes.show', $noteSpec->id),
+            'read_at' => null,
+            'is_archived' => false,
+            'created_at' => now()->subHour(),
+        ]);
+
+        // 10. Sample Activity Logs Pro for Admin Monitoring
+        ActivityLog::create([
+            'causer_type' => User::class,
+            'causer_id' => $userBudi->id,
+            'causer_name' => $userBudi->name,
+            'causer_role' => 'member',
+            'action' => 'LOGIN',
+            'entity_type' => 'User',
+            'entity_id' => $userBudi->id,
+            'description' => 'Pengguna Budi Santoso berhasil login ke sistem',
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0.0.0',
+            'properties' => ['method' => 'oauth_google'],
+            'created_at' => now()->subHours(6),
+        ]);
+
+        ActivityLog::create([
+            'causer_type' => User::class,
+            'causer_id' => $userBudi->id,
+            'causer_name' => $userBudi->name,
+            'causer_role' => 'member',
+            'action' => 'CREATE_WORKSPACE',
+            'entity_type' => 'NoteApp',
+            'entity_id' => $appKuliah->id,
+            'description' => "Membuat ruang kerja baru 'Catatan Tugas Kuliah'",
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'properties' => ['theme' => 'yellow', 'is_public' => true],
+            'created_at' => now()->subHours(5),
+        ]);
+
+        ActivityLog::create([
+            'causer_type' => User::class,
+            'causer_id' => $userBudi->id,
+            'causer_name' => $userBudi->name,
+            'causer_role' => 'member',
+            'action' => 'CREATE_NOTE',
+            'entity_type' => 'Note',
+            'entity_id' => $noteMakalah->id,
+            'description' => "Membuat catatan tugas 'Makalah Etika AI & Masa Depan Manusia'",
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'properties' => ['category' => 'task', 'reminder_days' => 2],
+            'created_at' => now()->subHours(4),
+        ]);
+
+        ActivityLog::create([
+            'causer_type' => null,
+            'causer_id' => null,
+            'causer_name' => 'System Cron',
+            'causer_role' => 'system',
+            'action' => 'SEND_REMINDER',
+            'entity_type' => 'Note',
+            'entity_id' => $noteMakalah->id,
+            'description' => "Pengingat deadline tugas 'Makalah Etika AI' dikirimkan ke budi.santoso@gmail.com",
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Artisan Console CLI',
+            'properties' => ['recipient' => 'budi.santoso@gmail.com'],
+            'created_at' => now()->subHours(2),
+        ]);
+
+        ActivityLog::create([
+            'causer_type' => Admin::class,
+            'causer_id' => $admin->id,
+            'causer_name' => $admin->username,
+            'causer_role' => 'admin',
+            'action' => 'UPDATE_SETTINGS',
+            'entity_type' => 'SystemSetting',
+            'entity_id' => null,
+            'description' => 'Memperbarui batasan ukuran maksimal upload file menjadi 10MB',
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'properties' => ['max_file_size_mb' => 10, 'max_files_per_upload' => 5],
+            'created_at' => now()->subHour(),
         ]);
     }
 }

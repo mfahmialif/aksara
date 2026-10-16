@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminAuthController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\AppNotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NoteAppController;
 use App\Http\Controllers\NoteController;
@@ -61,6 +62,13 @@ Route::middleware(['auth:web'])->group(function () {
     // Preferences
     Route::get('/settings/preferences', [UserSettingsController::class, 'edit'])->name('settings.preferences');
     Route::put('/settings/preferences', [UserSettingsController::class, 'update'])->name('settings.preferences.update');
+
+    // In-App Notifications Pro
+    Route::get('/notifications', [AppNotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{id}/read', [AppNotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [AppNotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+    Route::post('/notifications/{id}/archive', [AppNotificationController::class, 'archive'])->name('notifications.archive');
+    Route::delete('/notifications/{id}', [AppNotificationController::class, 'destroy'])->name('notifications.destroy');
 });
 
 // --- Admin Authentication Routes ---
@@ -78,5 +86,7 @@ Route::prefix('admin')->group(function () {
         Route::post('/users/{id}/toggle-status', [AdminDashboardController::class, 'toggleUserStatus'])->name('admin.users.toggle');
         Route::post('/admins', [AdminDashboardController::class, 'createAdmin'])->name('admin.admins.store');
         Route::get('/reminders', [AdminDashboardController::class, 'reminders'])->name('admin.reminders');
+        Route::get('/logs', [AdminDashboardController::class, 'logs'])->name('admin.logs');
+        Route::delete('/logs/clear', [AdminDashboardController::class, 'clearLogs'])->name('admin.logs.clear');
     });
 });

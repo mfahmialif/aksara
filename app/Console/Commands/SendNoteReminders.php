@@ -2,8 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Models\AppNotification;
 use App\Models\Note;
 use App\Models\ReminderLog;
+use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -74,6 +77,22 @@ class SendNoteReminders extends Command
                             'sent_at' => $now,
                             'error_message' => null,
                         ]);
+
+                        // In-app Notification Pro for the recipient member
+                        $recipientUser = User::where('email', $email)->first();
+                        if ($recipientUser) {
+                            AppNotification::create([
+                                'user_id' => $recipientUser->id,
+                                'title' => '⏰ Pengingat Deadline: '.$note->title,
+                                'message' => 'Catatan tugas "'.$note->title.'" mendekati batas waktu penyelesaian pada '.Carbon::parse($note->deadline_at)->translatedFormat('d M Y H:i').'. Silakan periksa kemajuan tugas Anda.',
+                                'type' => 'reminder',
+                                'action_url' => route('notes.show', $note->id),
+                                'read_at' => null,
+                                'is_archived' => false,
+                            ]);
+                        }
+
+                        ActivityLogger::log('SEND_REMINDER', "Pengingat deadline tugas '{$note->title}' dikirimkan ke {$email}", $note);
 
                         $this->line("Pengingat terkirim ke: {$email} untuk tugas: {$note->title}");
                         $sentCount++;

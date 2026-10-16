@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -36,6 +37,9 @@ class AdminAuthController extends Controller
         if (Auth::guard('admin')->attempt($attemptData, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
+            $admin = Auth::guard('admin')->user();
+            ActivityLogger::log('ADMIN_LOGIN', "Administrator {$admin->username} ({$admin->name}) berhasil masuk ke panel admin", $admin);
+
             return redirect()->route('admin.dashboard')->with('success', 'Selamat datang di Panel Admin Internal.');
         }
 
@@ -46,6 +50,11 @@ class AdminAuthController extends Controller
 
     public function logout(Request $request)
     {
+        $admin = Auth::guard('admin')->user();
+        if ($admin) {
+            ActivityLogger::log('ADMIN_LOGOUT', "Administrator {$admin->username} telah keluar dari sistem", $admin);
+        }
+
         Auth::guard('admin')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

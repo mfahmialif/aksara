@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AppNotification;
 use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -58,6 +59,17 @@ class HandleInertiaRequests extends Middleware
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
             ],
+            'notifications_summary' => $request->user('web') ? [
+                'unread_count' => AppNotification::where('user_id', $request->user('web')->id)
+                    ->whereNull('read_at')
+                    ->where('is_archived', false)
+                    ->count(),
+                'recent' => AppNotification::where('user_id', $request->user('web')->id)
+                    ->where('is_archived', false)
+                    ->orderBy('created_at', 'desc')
+                    ->limit(6)
+                    ->get(),
+            ] : null,
             'system_settings' => SystemSetting::getAll(),
         ];
     }

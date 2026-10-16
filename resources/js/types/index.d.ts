@@ -104,6 +104,36 @@ export interface Note {
     collaborators?: Collaborator[];
 }
 
+export interface AppNotification {
+    id: number;
+    user_id: number;
+    title: string;
+    message: string;
+    type: 'reminder' | 'collaboration' | 'task' | 'system';
+    action_url?: string | null;
+    read_at?: string | null;
+    is_archived: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ActivityLog {
+    id: number;
+    causer_type?: string | null;
+    causer_id?: number | null;
+    causer_name: string;
+    causer_role: 'member' | 'admin' | 'system';
+    action: string;
+    entity_type?: string | null;
+    entity_id?: number | null;
+    description: string;
+    ip_address?: string | null;
+    user_agent?: string | null;
+    properties?: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface PageProps<T = Record<string, unknown>> {
     auth: {
         user: User | null;
@@ -113,6 +143,10 @@ export interface PageProps<T = Record<string, unknown>> {
         success?: string | null;
         error?: string | null;
     };
+    notifications_summary?: {
+        unread_count: number;
+        recent: AppNotification[];
+    } | null;
     system_settings: SystemSettings;
     [key: string]: unknown;
 }

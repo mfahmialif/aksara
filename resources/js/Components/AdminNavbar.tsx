@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { PageProps } from '@/types';
-import { Shield, LayoutDashboard, Sliders, Users, Bell, LogOut, ExternalLink, CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { Shield, LayoutDashboard, Sliders, Users, Bell, LogOut, ExternalLink, CheckCircle2, AlertTriangle, X, ClipboardList } from 'lucide-react';
 import NeoButton from './UI/NeoButton';
 
 export default function AdminNavbar() {
@@ -64,6 +64,13 @@ export default function AdminNavbar() {
                             >
                                 <Bell className="w-3.5 h-3.5" />
                                 Log Pengingat
+                            </Link>
+                            <Link
+                                href="/admin/logs"
+                                className="flex items-center gap-1.5 px-3 py-1.5 font-heading font-bold text-xs uppercase tracking-wider text-black border-2 border-transparent hover:border-black hover:bg-[#FF8FAB] transition-all hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                            >
+                                <ClipboardList className="w-3.5 h-3.5" />
+                                Log Aktivitas Pro
                             </Link>
                         </nav>
                     </div>

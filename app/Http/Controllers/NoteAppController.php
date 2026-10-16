@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppNotification;
 use App\Models\Collaborator;
 use App\Models\Note;
 use App\Models\NoteApp;
 use App\Models\NoteGroup;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -85,6 +87,8 @@ class NoteAppController extends Controller
             'sort_order' => 1,
         ]);
 
+        ActivityLogger::log('CREATE_WORKSPACE', "Membuat ruang kerja baru '{$app->name}'", $app);
+
         return redirect()->route('apps.show', $app->id)->with('success', 'Aplikasi Catatan "'.$app->name.'" berhasil dibuat!');
     }
 
@@ -158,6 +162,8 @@ class NoteAppController extends Controller
 
         $app->update($validated);
 
+        ActivityLogger::log('UPDATE_WORKSPACE', "Memperbarui ruang kerja '{$app->name}'", $app);
+
         return back()->with('success', 'Pengaturan aplikasi catatan berhasil diperbarui.');
     }
 
@@ -172,6 +178,8 @@ class NoteAppController extends Controller
 
         $name = $app->name;
         $app->delete();
+
+        ActivityLogger::log('DELETE_WORKSPACE', "Menghapus ruang kerja '{$name}'");
 
         return redirect()->route('apps.index')->with('success', 'Aplikasi "'.$name.'" telah dihapus.');
     }
@@ -208,6 +216,20 @@ class NoteAppController extends Controller
             ]
         );
 
+        if ($invitedUser) {
+            AppNotification::create([
+                'user_id' => $invitedUser->id,
+                'title' => '👥 Undangan Kolaborasi Ruang Kerja',
+                'message' => $user->name.' mengundang Anda bergabung sebagai kolaborator di Ruang Kerja "'.$app->name.'".',
+                'type' => 'collaboration',
+                'action_url' => route('apps.show', $app->id),
+                'read_at' => null,
+                'is_archived' => false,
+            ]);
+        }
+
+        ActivityLogger::log('INVITE_COLLABORATOR', "Mengundang {$validated['email']} ke ruang kerja '{$app->name}'", $app);
+
         return back()->with('success', 'Kolaborator '.$validated['email'].' berhasil ditambahkan!');
     }
 
@@ -225,7 +247,10 @@ class NoteAppController extends Controller
             ->where('id', $collabId)
             ->firstOrFail();
 
+        $email = $collab->invited_email;
         $collab->delete();
+
+        ActivityLogger::log('REMOVE_COLLABORATOR', "Menghapus akses kolaborator {$email} dari ruang kerja '{$app->name}'", $app);
 
         return back()->with('success', 'Kolaborator telah dihapus.');
     }

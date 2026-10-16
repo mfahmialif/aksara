@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
@@ -60,6 +61,8 @@ class AuthController extends Controller
 
             Auth::login($user, true);
 
+            ActivityLogger::log('LOGIN', "Pengguna {$user->name} ({$user->email}) berhasil masuk ke sistem via Google OAuth", $user);
+
             return redirect()->intended(route('apps.index'))->with('success', 'Selamat datang, '.$user->name.'!');
         } catch (\Throwable $e) {
             return redirect()->route('welcome')->with('error', 'Gagal login via Google: '.$e->getMessage());
@@ -83,6 +86,8 @@ class AuthController extends Controller
 
         Auth::login($user, true);
 
+        ActivityLogger::log('LOGIN', "Pengguna {$user->name} ({$user->email}) masuk ke sistem via Demo Login", $user);
+
         return redirect()->route('apps.index')->with('success', 'Berhasil masuk sebagai demo: '.$user->name);
     }
 
@@ -91,6 +96,11 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
+        $user = Auth::guard('web')->user();
+        if ($user) {
+            ActivityLogger::log('LOGOUT', "Pengguna {$user->name} ({$user->email}) telah keluar dari sistem", $user);
+        }
+
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

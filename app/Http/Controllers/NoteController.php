@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppNotification;
 use App\Models\Collaborator;
 use App\Models\Note;
 use App\Models\NoteAttachment;
 use App\Models\NoteGroup;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +46,8 @@ class NoteController extends Controller
             'is_public' => false,
             'public_token' => 'note-'.Str::random(24),
         ]);
+
+        ActivityLogger::log('CREATE_NOTE', "Membuat catatan '{$note->title}' dalam grup '{$group->name}'", $note);
 
         return redirect()->route('apps.show', [
             'app' => $group->note_app_id,
@@ -102,6 +106,8 @@ class NoteController extends Controller
 
         $note->update($validated);
 
+        ActivityLogger::log('UPDATE_NOTE', "Memperbarui catatan '{$note->title}'", $note);
+
         return back()->with('success', 'Catatan berhasil disimpan.');
     }
 
@@ -124,6 +130,8 @@ class NoteController extends Controller
         }
 
         $note->delete();
+
+        ActivityLogger::log('DELETE_NOTE', "Menghapus catatan '{$title}'");
 
         return redirect()->route('apps.show', $appId)->with('success', 'Catatan "'.$title.'" berhasil dihapus.');
     }
@@ -194,6 +202,8 @@ class NoteController extends Controller
             $savedAttachments[] = $attachment;
         }
 
+        ActivityLogger::log('UPLOAD_ATTACHMENT', 'Mengunggah '.count($savedAttachments)." file lampiran ke catatan '{$note->title}'", $note);
+
         return back()->with('success', count($savedAttachments).' file berhasil diunggah.');
     }
 
@@ -207,8 +217,11 @@ class NoteController extends Controller
         }
 
         $attachment = NoteAttachment::where('note_id', $note->id)->where('id', $attachmentId)->firstOrFail();
+        $fileName = $attachment->file_name;
         Storage::disk('public')->delete($attachment->file_path);
         $attachment->delete();
+
+        ActivityLogger::log('DELETE_ATTACHMENT', "Menghapus lampiran '{$fileName}' dari catatan '{$note->title}'", $note);
 
         return back()->with('success', 'Lampiran berhasil dihapus.');
     }
@@ -245,6 +258,20 @@ class NoteController extends Controller
             ]
         );
 
+        if ($invitedUser) {
+            AppNotification::create([
+                'user_id' => $invitedUser->id,
+                'title' => '👥 Undangan Kolaborasi Catatan',
+                'message' => $user->name.' mengundang Anda berkolaborasi khusus pada catatan "'.$note->title.'".',
+                'type' => 'collaboration',
+                'action_url' => route('notes.show', $note->id),
+                'read_at' => null,
+                'is_archived' => false,
+            ]);
+        }
+
+        ActivityLogger::log('INVITE_COLLABORATOR', "Mengundang {$validated['email']} sebagai kolaborator catatan '{$note->title}'", $note);
+
         return back()->with('success', 'Kolaborator khusus catatan ('.$validated['email'].') berhasil ditambahkan!');
     }
 
@@ -262,7 +289,10 @@ class NoteController extends Controller
             ->where('id', $collabId)
             ->firstOrFail();
 
+        $email = $collab->invited_email;
         $collab->delete();
+
+        ActivityLogger::log('REMOVE_COLLABORATOR', "Menghapus akses kolaborator {$email} dari catatan '{$note->title}'", $note);
 
         return back()->with('success', 'Kolaborator catatan berhasil dihapus.');
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Admin;
 use App\Models\Note;
 use App\Models\NoteApp;
@@ -10,6 +11,7 @@ use App\Models\NoteAttachment;
 use App\Models\ReminderLog;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
@@ -82,6 +84,8 @@ class AdminDashboardController extends Controller
         SystemSetting::set('allowed_extensions', strtolower(trim($validated['allowed_extensions'])), 'Ekstensi diizinkan');
         SystemSetting::set('blocked_extensions', strtolower(trim($validated['blocked_extensions'])), 'Ekstensi diblokir');
 
+        ActivityLogger::log('UPDATE_SETTINGS', 'Memperbarui pengaturan batasan ukuran file dan ekstensi keamanan sistem', null, $validated);
+
         return back()->with('success', 'Pengaturan batasan file berhasil diperbarui.');
     }
 
@@ -104,6 +108,8 @@ class AdminDashboardController extends Controller
 
         $status = $user->is_active ? 'diaktifkan' : 'dinonaktifkan';
 
+        ActivityLogger::log('TOGGLE_USER_STATUS', "Mengubah status akun pengguna {$user->name} ({$user->email}) menjadi {$status}", $user);
+
         return back()->with('success', "Status akun {$user->name} berhasil {$status}.");
     }
 
@@ -117,7 +123,7 @@ class AdminDashboardController extends Controller
             'role' => 'required|in:admin,superadmin',
         ]);
 
-        Admin::create([
+        $admin = Admin::create([
             'name' => $validated['name'],
             'username' => $validated['username'],
             'email' => $validated['email'],
@@ -125,6 +131,8 @@ class AdminDashboardController extends Controller
             'role' => $validated['role'],
             'is_active' => true,
         ]);
+
+        ActivityLogger::log('CREATE_ADMIN', "Mendaftarkan administrator baru: {$admin->username} ({$admin->name}) dengan hak akses {$admin->role}", $admin);
 
         return back()->with('success', 'Admin baru berhasil didaftarkan.');
     }
@@ -148,5 +156,65 @@ class AdminDashboardController extends Controller
             'logs' => $logs,
             'upcoming' => $upcomingTasks,
         ]);
+    }
+
+    /**
+     * Display Activity Logs Pro for Admin Monitoring.
+     */
+    public function logs(Request $request)
+    {
+        $query = ActivityLog::query();
+
+        // Filter by role
+        if ($request->filled('role') && $request->role !== 'all') {
+            $query->where('causer_role', $request->role);
+        }
+
+        // Filter by action group
+        if ($request->filled('action') && $request->action !== 'all') {
+            $query->where('action', 'like', "%{$request->action}%");
+        }
+
+        // Search in description, causer_name, ip_address
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('description', 'like', "%{$search}%")
+                    ->orWhere('causer_name', 'like', "%{$search}%")
+                    ->orWhere('action', 'like', "%{$search}%")
+                    ->orWhere('ip_address', 'like', "%{$search}%");
+            });
+        }
+
+        $logs = $query->orderBy('created_at', 'desc')->paginate(25)->withQueryString();
+
+        $stats = [
+            'total_logs' => ActivityLog::count(),
+            'member_logs' => ActivityLog::where('causer_role', 'member')->count(),
+            'admin_logs' => ActivityLog::where('causer_role', 'admin')->count(),
+            'system_logs' => ActivityLog::where('causer_role', 'system')->count(),
+        ];
+
+        return Inertia::render('Admin/Logs', [
+            'logs' => $logs,
+            'stats' => $stats,
+            'filters' => [
+                'search' => $request->search ?? '',
+                'role' => $request->role ?? 'all',
+                'action' => $request->action ?? 'all',
+            ],
+        ]);
+    }
+
+    /**
+     * Clear old activity logs.
+     */
+    public function clearLogs()
+    {
+        ActivityLog::truncate();
+
+        ActivityLogger::log('CLEAR_LOGS', 'Membersihkan seluruh riwayat log aktivitas sistem.');
+
+        return back()->with('success', 'Seluruh riwayat log aktivitas berhasil dibersihkan.');
     }
 }

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\Admin;
+use App\Models\AppNotification;
 use App\Models\Collaborator;
 use App\Models\Note;
 use App\Models\NoteApp;
@@ -215,5 +217,72 @@ class CollaborativeNoteTest extends TestCase
         // 3. Direct admin login URL remains valid and isolated
         $adminLoginResponse = $this->get('/admin/login');
         $adminLoginResponse->assertStatus(200);
+    }
+
+    /**
+     * Test 7: Member In-App Notifications Pro & Admin Activity Logs Pro
+     */
+    public function test_member_notifications_and_admin_activity_logs(): void
+    {
+        $user = User::first();
+        $admin = Admin::first();
+
+        // 1. In-App Notifications
+        $notif = AppNotification::create([
+            'user_id' => $user->id,
+            'title' => '⏰ Pengingat Deadline Tugas',
+            'message' => 'Tugas akan jatuh tempo besok',
+            'type' => 'reminder',
+            'action_url' => '/app',
+            'read_at' => null,
+            'is_archived' => false,
+        ]);
+
+        // Access notifications page
+        $this->actingAs($user, 'web')
+            ->get('/notifications')
+            ->assertStatus(200);
+
+        // Mark as read
+        $this->actingAs($user, 'web')
+            ->post("/notifications/{$notif->id}/read")
+            ->assertSessionHas('success');
+        $this->assertNotNull($notif->fresh()->read_at);
+
+        // Mark all as read
+        $this->actingAs($user, 'web')
+            ->post('/notifications/read-all')
+            ->assertSessionHas('success');
+
+        // Archive
+        $this->actingAs($user, 'web')
+            ->post("/notifications/{$notif->id}/archive")
+            ->assertSessionHas('success');
+        $this->assertTrue($notif->fresh()->is_archived);
+
+        // 2. Admin Activity Logs Pro
+        ActivityLog::create([
+            'causer_type' => User::class,
+            'causer_id' => $user->id,
+            'causer_name' => $user->name,
+            'causer_role' => 'member',
+            'action' => 'CREATE_NOTE',
+            'description' => 'Membuat catatan tugas baru',
+        ]);
+
+        // Admin accesses logs page
+        $this->actingAs($admin, 'admin')
+            ->get('/admin/logs')
+            ->assertStatus(200);
+
+        // Admin filters logs
+        $this->actingAs($admin, 'admin')
+            ->get('/admin/logs?role=member&action=NOTE')
+            ->assertStatus(200);
+
+        // Admin clears logs
+        $this->actingAs($admin, 'admin')
+            ->delete('/admin/logs/clear')
+            ->assertSessionHas('success');
     }
 }
