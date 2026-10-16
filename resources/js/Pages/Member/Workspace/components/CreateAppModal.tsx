@@ -3,6 +3,17 @@ import { router } from '@inertiajs/react';
 import NeoModal from '@/Components/UI/NeoModal';
 import NeoButton from '@/Components/UI/NeoButton';
 import { NeoInput, NeoSelect, NeoTextarea } from '@/Components/UI/NeoInput';
+import { Check } from 'lucide-react';
+
+const COLOR_THEMES = [
+    { value: 'yellow', label: 'Vibrant Yellow (Standar)', hex: '#FFDC58', bgClass: 'bg-[#FFDC58]', emoji: '🟡' },
+    { value: 'purple', label: 'Neo Purple', hex: '#A388EE', bgClass: 'bg-[#A388EE]', emoji: '🟣' },
+    { value: 'mint', label: 'Mint Fresh', hex: '#7FBC8C', bgClass: 'bg-[#7FBC8C]', emoji: '🟢' },
+    { value: 'coral', label: 'Coral Rose', hex: '#FF6B6B', bgClass: 'bg-[#FF6B6B]', emoji: '🔴' },
+    { value: 'sky', label: 'Sky Blue', hex: '#69D2E7', bgClass: 'bg-[#69D2E7]', emoji: '🔵' },
+    { value: 'pink', label: 'Pastel Pink', hex: '#FF8FAB', bgClass: 'bg-[#FF8FAB]', emoji: '🌸' },
+    { value: 'orange', label: 'Warm Orange', hex: '#FFA94D', bgClass: 'bg-[#FFA94D]', emoji: '🟠' },
+];
 
 interface CreateAppModalProps {
     isOpen: boolean;
@@ -68,20 +79,60 @@ export default function CreateAppModal({ isOpen, onClose }: CreateAppModalProps)
                     required
                 />
 
-                <NeoSelect
-                    label="Warna Tema Identitas"
-                    value={colorTheme}
-                    onChange={(e) => setColorTheme(e.target.value)}
-                    options={[
-                        { value: 'yellow', label: 'Vibrant Yellow (Standar)' },
-                        { value: 'purple', label: 'Neo Purple' },
-                        { value: 'mint', label: 'Mint Fresh' },
-                        { value: 'coral', label: 'Coral Rose' },
-                        { value: 'sky', label: 'Sky Blue' },
-                        { value: 'pink', label: 'Pastel Pink' },
-                        { value: 'orange', label: 'Warm Orange' },
-                    ]}
-                />
+                {/* Visual Color Palette Swatches & Select */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-bold uppercase tracking-wider text-black font-heading">
+                        Warna Tema Identitas
+                    </label>
+
+                    {/* Interactive Color Swatch Chips */}
+                    <div className="flex flex-wrap items-center gap-2 p-2.5 bg-neutral-50 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        {COLOR_THEMES.map((theme) => {
+                            const isSelected = colorTheme === theme.value;
+                            return (
+                                <button
+                                    key={theme.value}
+                                    type="button"
+                                    onClick={() => setColorTheme(theme.value)}
+                                    title={theme.label}
+                                    className={`
+                                        w-8 h-8 rounded-none border-2 border-black transition-all flex items-center justify-center cursor-pointer
+                                        ${theme.bgClass}
+                                        ${isSelected ? 'scale-110 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] ring-2 ring-black' : 'hover:scale-105 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] opacity-85 hover:opacity-100'}
+                                    `}
+                                >
+                                    {isSelected && <Check className="w-4 h-4 text-black stroke-[3]" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <NeoSelect
+                        value={colorTheme}
+                        onChange={(e) => setColorTheme(e.target.value)}
+                        options={COLOR_THEMES.map((t) => ({
+                            value: t.value,
+                            label: `${t.emoji} ${t.label}`,
+                        }))}
+                    />
+
+                    {/* Live Preview Card */}
+                    <div className={`p-2.5 border-2 border-black flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+                        COLOR_THEMES.find((t) => t.value === colorTheme)?.bgClass || 'bg-[#FFDC58]'
+                    }`}>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-white px-1.5 py-0.5 border border-black">
+                                Pratinjau
+                            </span>
+                            <span className="text-xs font-black truncate max-w-[200px]">
+                                {name.trim() || 'Nama Ruang Kerja'}
+                            </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-neutral-800">
+                            {COLOR_THEMES.find((t) => t.value === colorTheme)?.label}
+                        </span>
+                    </div>
+                </div>
 
                 <NeoTextarea
                     label="Deskripsi Ruang Kerja (Opsional)"

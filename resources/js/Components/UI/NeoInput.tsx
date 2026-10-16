@@ -88,16 +88,26 @@ export function NeoTextarea({
     );
 }
 
-interface NeoSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+export interface NeoSelectOption {
+    value: string | number;
+    label: string;
+    disabled?: boolean;
+}
+
+export interface NeoSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
     label?: string;
     error?: string;
-    children: React.ReactNode;
+    helperText?: string;
+    options?: NeoSelectOption[];
+    children?: React.ReactNode;
 }
 
 export function NeoSelect({
     label,
     error,
+    helperText,
     className = '',
+    options,
     children,
     id,
     ...props
@@ -125,16 +135,22 @@ export function NeoSelect({
                 `}
                 {...props}
             >
+                {options && options.map((opt) => (
+                    <option key={opt.value} value={opt.value} disabled={opt.disabled} className="text-black bg-white py-1">
+                        {opt.label}
+                    </option>
+                ))}
                 {children}
             </select>
             {error && <p className="mt-1 text-xs font-bold text-rose-600">{error}</p>}
+            {helperText && !error && <p className="mt-1 text-xs text-neutral-600 font-medium">{helperText}</p>}
         </div>
     );
 }
 
-interface NeoBadgeProps {
+export interface NeoBadgeProps {
     children: React.ReactNode;
-    variant?: 'yellow' | 'purple' | 'mint' | 'coral' | 'sky' | 'white' | 'gray';
+    variant?: 'yellow' | 'purple' | 'mint' | 'coral' | 'sky' | 'pink' | 'orange' | 'white' | 'gray';
     className?: string;
 }
 
@@ -149,6 +165,8 @@ export function NeoBadge({
         mint: 'bg-[#7FBC8C] text-black',
         coral: 'bg-[#FF6B6B] text-black',
         sky: 'bg-[#69D2E7] text-black',
+        pink: 'bg-[#FF8FAB] text-black',
+        orange: 'bg-[#FFA94D] text-black',
         white: 'bg-white text-black',
         gray: 'bg-neutral-200 text-neutral-800',
     };
