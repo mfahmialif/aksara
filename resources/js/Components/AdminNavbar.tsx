@@ -1,12 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { PageProps } from '@/types';
-import { Shield, LayoutDashboard, Sliders, Users, Bell, LogOut, ExternalLink } from 'lucide-react';
+import { Shield, LayoutDashboard, Sliders, Users, Bell, LogOut, ExternalLink, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import NeoButton from './UI/NeoButton';
 
 export default function AdminNavbar() {
     const { auth, flash } = usePage<PageProps>().props;
     const admin = auth.admin;
+    const [showFlash, setShowFlash] = useState(true);
+
+    useEffect(() => {
+        if (flash.success || flash.error) {
+            setShowFlash(true);
+        }
+    }, [flash.success, flash.error]);
 
     const handleLogout = () => {
         router.post('/admin/logout');
@@ -77,14 +84,53 @@ export default function AdminNavbar() {
                 </div>
             </div>
 
-            {flash.success && (
-                <div className="bg-[#7FBC8C] border-t-2 border-b-2 border-black px-4 py-2 text-black text-sm font-bold">
-                    {flash.success}
-                </div>
-            )}
-            {flash.error && (
-                <div className="bg-[#FF6B6B] border-t-2 border-b-2 border-black px-4 py-2 text-black text-sm font-bold">
-                    {flash.error}
+            {/* Flash Messages Banner - Cleanly aligned with Admin Navbar Container */}
+            {((flash.success && showFlash) || (flash.error && showFlash)) && (
+                <div className="border-t-2 border-black bg-[#FFFDF8] py-2.5">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        {flash.success && (
+                            <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#7FBC8C] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-6 h-6 bg-white border border-black flex items-center justify-center shrink-0 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                                        <CheckCircle2 className="w-4 h-4 text-black" />
+                                    </div>
+                                    <span className="text-sm font-black font-heading uppercase tracking-wide text-black truncate">
+                                        {flash.success}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFlash(false)}
+                                    className="p-1 hover:bg-black/10 border border-transparent hover:border-black transition-colors cursor-pointer shrink-0"
+                                    title="Tutup pemberitahuan"
+                                    aria-label="Tutup"
+                                >
+                                    <X className="w-4 h-4 text-black" />
+                                </button>
+                            </div>
+                        )}
+                        {flash.error && (
+                            <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#FF6B6B] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-6 h-6 bg-white border border-black flex items-center justify-center shrink-0 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                                        <AlertTriangle className="w-4 h-4 text-black" />
+                                    </div>
+                                    <span className="text-sm font-black font-heading uppercase tracking-wide text-black truncate">
+                                        {flash.error}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFlash(false)}
+                                    className="p-1 hover:bg-black/10 border border-transparent hover:border-black transition-colors cursor-pointer shrink-0"
+                                    title="Tutup pemberitahuan"
+                                    aria-label="Tutup"
+                                >
+                                    <X className="w-4 h-4 text-black" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </header>
