@@ -36,7 +36,23 @@ class NoteGroupController extends Controller
             'sort_order' => $maxOrder + 1,
         ]);
 
-        return back()->with('success', 'Folder "'.$group->name.'" berhasil ditambahkan.');
+        $group->setRelation('notes', collect());
+
+        ActivityLogger::log('CREATE_GROUP', "Membuat folder '{$group->name}' dalam ruang kerja '{$app->name}'", $group);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Folder "'.$group->name.'" berhasil ditambahkan.',
+                'group' => $group,
+            ]);
+        }
+
+        if (Auth::check()) {
+            return redirect()->route('apps.show', $app->id)->with('success', 'Folder "'.$group->name.'" berhasil ditambahkan.');
+        }
+
+        return redirect()->route('public.app', $app->public_token)->with('success', 'Folder "'.$group->name.'" berhasil ditambahkan.');
     }
 
     public function update(Request $request, $id)
@@ -55,10 +71,24 @@ class NoteGroupController extends Controller
 
         $group->update($validated);
 
-        return back()->with('success', 'Folder berhasil diperbarui.');
+        ActivityLogger::log('UPDATE_GROUP', "Memperbarui folder '{$group->name}' dalam ruang kerja '{$group->app->name}'", $group);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Folder berhasil diperbarui.',
+                'group' => $group,
+            ]);
+        }
+
+        if (Auth::check()) {
+            return redirect()->route('apps.show', $group->note_app_id)->with('success', 'Folder berhasil diperbarui.');
+        }
+
+        return redirect()->route('public.app', $group->app->public_token)->with('success', 'Folder berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $user = Auth::user();
         $group = NoteGroup::with('app')->findOrFail($id);
@@ -67,10 +97,25 @@ class NoteGroupController extends Controller
             abort(403, 'Anda tidak memiliki izin menghapus grup ini.');
         }
 
+        $appId = $group->note_app_id;
         $name = $group->name;
+        $publicToken = $group->app->public_token;
         $group->delete();
 
-        return back()->with('success', 'Grup "'.$name.'" berhasil dihapus.');
+        ActivityLogger::log('DELETE_GROUP', "Menghapus folder '{$name}'", $group);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Grup "'.$name.'" berhasil dihapus.',
+            ]);
+        }
+
+        if (Auth::check()) {
+            return redirect()->route('apps.show', $appId)->with('success', 'Grup "'.$name.'" berhasil dihapus.');
+        }
+
+        return redirect()->route('public.app', $publicToken)->with('success', 'Grup "'.$name.'" berhasil dihapus.');
     }
 
     /**

@@ -422,38 +422,119 @@ export default function NoteEditor({
         });
     };
 
-    const handleSaveGroupModal = (name: string, color: string) => {
-        if (!name.trim()) return;
+    const handleSaveGroupModal = async (name: string, color: string) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) return;
+
         if (folderModalState.mode === 'create') {
-            router.post(
-                `/app/${app.id}/groups`,
-                { name: name.trim(), color: color || '#FFDC58' },
-                { preserveScroll: true }
-            );
+            try {
+                const csrfToken = getCsrfToken();
+                const response = await fetch(`/app/${app.id}/groups`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        name: trimmedName,
+                        color: color || '#FFDC58',
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.group) {
+                        const newGroup: NoteGroup = {
+                            ...data.group,
+                            notes: data.group.notes || [],
+                        };
+                        setLocalGroups((prev) => [...prev, newGroup]);
+                        setActiveGroupId(newGroup.id);
+                    }
+                } else {
+                    router.post(
+                        `/app/${app.id}/groups`,
+                        { name: trimmedName, color: color || '#FFDC58' },
+                        { preserveScroll: true, preserveState: true }
+                    );
+                }
+            } catch {
+                router.post(
+                    `/app/${app.id}/groups`,
+                    { name: trimmedName, color: color || '#FFDC58' },
+                    { preserveScroll: true, preserveState: true }
+                );
+            }
         } else if (folderModalState.mode === 'edit' && folderModalState.group) {
             const groupId = folderModalState.group.id;
-            router.put(
-                `/groups/${groupId}`,
-                { name: name.trim(), color: color || '#FFDC58' },
-                { preserveScroll: true }
+            const updatedColor = color || '#FFDC58';
+
+            setLocalGroups((prev) =>
+                prev.map((g) =>
+                    g.id === groupId
+                        ? { ...g, name: trimmedName, color: updatedColor }
+                        : g
+                )
             );
+
+            try {
+                const csrfToken = getCsrfToken();
+                await fetch(`/groups/${groupId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        name: trimmedName,
+                        color: updatedColor,
+                    }),
+                });
+            } catch {
+                router.put(
+                    `/groups/${groupId}`,
+                    { name: trimmedName, color: updatedColor },
+                    { preserveScroll: true, preserveState: true }
+                );
+            }
         }
     };
 
-    const handleDeleteGroup = (groupId: string) => {
+    const handleDeleteGroup = async (groupId: string) => {
         if (
             !confirm(
                 `Hapus ${topicLabel.toLowerCase()} ini? Semua catatan di dalamnya juga akan terhapus secara permanen!`
             )
         )
             return;
-        router.delete(`/groups/${groupId}`, {
-            onSuccess: () => {
-                if (activeGroupId === groupId) {
-                    setActiveGroupId('all');
-                }
-            },
-        });
+
+        // Optimistically remove group and update activeGroupId if necessary
+        setLocalGroups((prev) => prev.filter((g) => g.id !== groupId));
+        if (activeGroupId === groupId) {
+            setActiveGroupId('all');
+        }
+
+        try {
+            const csrfToken = getCsrfToken();
+            await fetch(`/groups/${groupId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+        } catch {
+            router.delete(`/groups/${groupId}`, {
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }
     };
 
     const workspaceNav = (

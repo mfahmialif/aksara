@@ -256,7 +256,7 @@ export default function FloatingTopicSidebar({
                                     return (
                                         <div
                                             key={group.id}
-                                            className={`group/item border-2 border-black transition-all flex items-center justify-between p-1.5 ${
+                                            className={`group/item border-2 border-black transition-all flex items-start justify-between p-1.5 gap-1.5 ${
                                                 isActive
                                                     ? 'shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-black ring-1 ring-black'
                                                     : 'bg-white hover:bg-neutral-50 shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)]'
@@ -268,19 +268,19 @@ export default function FloatingTopicSidebar({
                                             <button
                                                 type="button"
                                                 onClick={() => handleSelectTopic(group.id)}
-                                                className="flex-1 min-w-0 text-left flex items-center gap-2 pr-1 cursor-pointer"
+                                                className="flex-1 min-w-0 text-left flex items-start gap-2 pr-1 cursor-pointer"
                                                 title={`${topicLabel}: ${group.name} (${noteCount} catatan)`}
                                             >
                                                 <span
-                                                    className="w-3 h-3 border border-black shrink-0 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                                                    className="w-3 h-3 border border-black shrink-0 mt-0.5 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
                                                     style={{ backgroundColor: topicColor }}
                                                 />
-                                                <span className="text-xs font-heading font-bold uppercase truncate min-w-0 text-black">
+                                                <span className="text-xs font-heading font-bold uppercase break-words whitespace-normal min-w-0 text-black leading-tight">
                                                     {group.name}
                                                 </span>
                                             </button>
 
-                                            <div className="flex items-center gap-1 shrink-0">
+                                            <div className="flex items-center gap-1 shrink-0 mt-0.5">
                                                 <span className="px-1.5 py-0.2 bg-black text-white text-[10px] font-black shrink-0">
                                                     {noteCount}
                                                 </span>
@@ -443,7 +443,7 @@ export default function FloatingTopicSidebar({
                                     return (
                                         <div
                                             key={group.id}
-                                            className={`p-2 border-2 border-black flex items-center justify-between gap-2 ${
+                                            className={`p-2 border-2 border-black flex items-start justify-between gap-2 ${
                                                 isActive
                                                     ? 'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-black'
                                                     : 'bg-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
@@ -455,18 +455,18 @@ export default function FloatingTopicSidebar({
                                             <button
                                                 type="button"
                                                 onClick={() => handleSelectTopic(group.id)}
-                                                className="flex-1 text-left flex items-center gap-2 truncate cursor-pointer"
+                                                className="flex-1 text-left flex items-start gap-2 min-w-0 cursor-pointer"
                                             >
                                                 <span
-                                                    className="w-3 h-3 border border-black shrink-0"
+                                                    className="w-3 h-3 border border-black shrink-0 mt-0.5"
                                                     style={{ backgroundColor: topicColor }}
                                                 />
-                                                <span className="text-xs font-heading uppercase truncate">
+                                                <span className="text-xs font-heading uppercase break-words whitespace-normal text-black leading-tight min-w-0">
                                                     {group.name}
                                                 </span>
                                             </button>
 
-                                            <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
                                                 <span className="px-1.5 py-0.2 bg-black text-white text-[10px] font-black">
                                                     {noteCount}
                                                 </span>
