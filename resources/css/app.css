@@ -120,4 +120,106 @@ body.modal-open {
     scrollbar-width: none !important;
 }
 
+/* Neo-Brutalism Background Patterns */
+.neo-grid-pattern {
+    background-size: 32px 32px;
+    background-image: 
+        linear-gradient(to right, rgba(0, 0, 0, 0.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+}
+
+.neo-dots-pattern {
+    background-size: 24px 24px;
+    background-image: radial-gradient(circle, rgba(0, 0, 0, 0.12) 1.5px, transparent 1.5px);
+}
+
+/* Neo-Brutalism Keyframe Animations */
+@keyframes neoFloat {
+    0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-12px) rotate(1.5deg);
+    }
+}
+
+@keyframes neoFloatSlow {
+    0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-8px) rotate(-1deg);
+    }
+}
+
+@keyframes neoFloatReverse {
+    0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    50% {
+        transform: translateY(12px) rotate(-2deg);
+    }
+}
+
+@keyframes neoAirplane {
+    0% {
+        transform: translate(0, 0) rotate(-6deg);
+    }
+    25% {
+        transform: translate(12px, -8px) rotate(-2deg);
+    }
+    50% {
+        transform: translate(24px, 2px) rotate(-10deg);
+    }
+    75% {
+        transform: translate(10px, 8px) rotate(-4deg);
+    }
+    100% {
+        transform: translate(0, 0) rotate(-6deg);
+    }
+}
+
+@keyframes neoWiggle {
+    0%, 100% {
+        transform: rotate(-2deg);
+    }
+    50% {
+        transform: rotate(3deg);
+    }
+}
+
+@keyframes neoPulseSubtle {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.04);
+    }
+}
+
+.animate-neo-float {
+    animation: neoFloat 3.6s ease-in-out infinite;
+}
+
+.animate-neo-float-slow {
+    animation: neoFloatSlow 5s ease-in-out infinite;
+}
+
+.animate-neo-float-reverse {
+    animation: neoFloatReverse 4.2s ease-in-out infinite;
+}
+
+.animate-neo-airplane {
+    animation: neoAirplane 6s ease-in-out infinite;
+}
+
+.animate-neo-wiggle {
+    animation: neoWiggle 2.5s ease-in-out infinite;
+}
+
+.animate-neo-pulse-subtle {
+    animation: neoPulseSubtle 3s ease-in-out infinite;
+}
+
+
 
