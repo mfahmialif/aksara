@@ -623,7 +623,7 @@ class NoteAppController extends Controller
         $isEmailMatch = strtolower($currentUser->email) === strtolower($transfer['target_email']);
 
         $groupsCount = $app->groups()->count();
-        $notesCount = Note::whereIn('group_id', $app->groups()->pluck('id'))->count();
+        $notesCount = Note::whereIn('note_group_id', $app->groups()->pluck('id'))->count();
 
         return Inertia::render('Member/Workspace/TransferAccept', [
             'app' => [

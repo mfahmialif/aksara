@@ -159,6 +159,38 @@ class WorkspaceEditAndTransferTest extends TestCase
         $this->assertStringContainsString('signature=', $intendedUrl);
     }
 
+    public function test_authenticated_candidate_can_view_transfer_accept_screen(): void
+    {
+        $owner = User::factory()->create();
+        $candidate = User::factory()->create(['email' => 'calon@example.com']);
+
+        $app = NoteApp::create([
+            'owner_id' => $owner->id,
+            'name' => 'Transfer Project',
+            'color_theme' => 'yellow',
+        ]);
+
+        $token = 'test-token-view-123';
+        Cache::put("workspace_transfer:{$app->id}", [
+            'app_id' => $app->id,
+            'token' => $token,
+            'target_email' => 'calon@example.com',
+            'old_owner_id' => $owner->id,
+            'old_owner_name' => $owner->name,
+            'old_owner_email' => $owner->email,
+            'created_at' => now()->toIso8601String(),
+        ], now()->addDays(3));
+
+        $url = URL::temporarySignedRoute('apps.transfer.show', now()->addDays(3), [
+            'app' => $app->id,
+            'token' => $token,
+        ]);
+
+        $response = $this->actingAs($candidate, 'web')->get($url);
+
+        $response->assertOk();
+    }
+
     public function test_candidate_owner_can_accept_transfer_and_become_owner(): void
     {
         $oldOwner = User::factory()->create(['name' => 'Pemilik Lama', 'email' => 'lama@example.com']);
