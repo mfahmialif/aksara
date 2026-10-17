@@ -216,6 +216,7 @@ class NoteAppController extends Controller
         }
 
         $isOwner = $app->owner_id === $user->id;
+        $isCollaborator = $app->isCollaborator($user);
         $canEdit = $app->canUserEdit($user);
         $isSaved = SavedSharedLink::where('user_id', $user->id)
             ->where('item_type', 'app')
@@ -227,6 +228,7 @@ class NoteAppController extends Controller
             'groups' => $groups,
             'selected_note' => $selectedNote,
             'is_owner' => $isOwner,
+            'is_collaborator' => $isCollaborator,
             'can_edit' => $canEdit,
             'is_saved' => $isSaved,
         ]);
@@ -237,8 +239,8 @@ class NoteAppController extends Controller
         $user = Auth::user();
         $app = NoteApp::findOrFail($id);
 
-        if (! $app->canUserEdit($user)) {
-            abort(403, 'Anda tidak memiliki izin mengedit Aplikasi ini.');
+        if (! $user || ! $app->isOwnerOrCollaborator($user)) {
+            abort(403, 'Pengaturan ruang kerja hanya dapat diakses oleh pemilik atau kolaborator.');
         }
 
         $validated = $request->validate([

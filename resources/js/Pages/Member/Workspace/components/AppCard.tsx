@@ -97,7 +97,7 @@ export default function AppCard({ app, themeBg, onEdit }: AppCardProps) {
                                 <Users className="w-3.5 h-3.5 text-black" />
                             </span>
                         )}
-                        {isOwner && onEdit && (
+                        {(isOwner || isShared) && onEdit && (
                             <button
                                 type="button"
                                 onClick={(e) => {

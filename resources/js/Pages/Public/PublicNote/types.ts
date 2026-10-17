@@ -8,5 +8,6 @@ export interface PublicNoteProps {
     is_saved?: boolean;
     can_edit?: boolean;
     is_owner?: boolean;
+    is_collaborator?: boolean;
     share_public_token?: string;
 }

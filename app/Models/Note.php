@@ -108,12 +108,27 @@ class Note extends Model
             return true;
         }
 
-        // Check app level collaboration
         if ($app && $app->canUserEdit($user)) {
             return true;
         }
 
         // Check direct note level collaboration
+        return $this->isCollaborator($user);
+    }
+
+    public function isCollaborator(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($this->relationLoaded('collaborators')) {
+            return $this->collaborators->contains(function ($collab) use ($user) {
+                return ($collab->user_id && $collab->user_id === $user->id)
+                    || (! empty($collab->invited_email) && strtolower($collab->invited_email) === strtolower($user->email));
+            });
+        }
+
         return $this->collaborators()
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id)

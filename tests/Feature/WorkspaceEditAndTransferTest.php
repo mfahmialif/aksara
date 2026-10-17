@@ -72,6 +72,69 @@ class WorkspaceEditAndTransferTest extends TestCase
         ]);
     }
 
+    public function test_collaborator_can_update_workspace_settings(): void
+    {
+        $owner = User::factory()->create();
+        $collaboratorUser = User::factory()->create();
+        $app = NoteApp::create([
+            'owner_id' => $owner->id,
+            'name' => 'Original Workspace',
+            'color_theme' => 'yellow',
+            'description' => 'Original Description',
+            'topic_label' => 'Topik',
+        ]);
+
+        Collaborator::create([
+            'collaboratable_type' => NoteApp::class,
+            'collaboratable_id' => $app->id,
+            'user_id' => $collaboratorUser->id,
+            'invited_email' => $collaboratorUser->email,
+            'permission' => 'edit',
+        ]);
+
+        $response = $this->actingAs($collaboratorUser, 'web')->put("/app/{$app->id}", [
+            'name' => 'Collab Updated Name',
+            'color_theme' => 'mint',
+            'description' => 'Collab Description',
+            'topic_label' => 'Kategori',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('note_apps', [
+            'id' => $app->id,
+            'name' => 'Collab Updated Name',
+            'color_theme' => 'mint',
+            'description' => 'Collab Description',
+            'topic_label' => 'Kategori',
+        ]);
+    }
+
+    public function test_stranger_cannot_update_workspace_even_if_public_edit_is_enabled(): void
+    {
+        $owner = User::factory()->create();
+        $stranger = User::factory()->create();
+        $app = NoteApp::create([
+            'owner_id' => $owner->id,
+            'name' => 'Public Workspace',
+            'color_theme' => 'yellow',
+            'is_public' => true,
+            'public_permission' => 'edit',
+            'public_token' => 'pub-test-token-123',
+        ]);
+
+        // Even though public access can edit notes, workspace settings can only be edited by owner or collaborator
+        $response = $this->actingAs($stranger, 'web')->put("/app/{$app->id}", [
+            'name' => 'Hacked Public Workspace',
+            'color_theme' => 'coral',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('note_apps', [
+            'id' => $app->id,
+            'name' => 'Public Workspace',
+        ]);
+    }
+
     public function test_owner_can_initiate_transfer_ownership_via_email(): void
     {
         Mail::fake();

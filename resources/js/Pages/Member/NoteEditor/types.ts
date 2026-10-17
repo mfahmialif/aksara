@@ -6,6 +6,7 @@ export interface NoteEditorProps {
     selected_note: Note | null;
     is_owner: boolean;
     can_edit: boolean;
+    is_collaborator?: boolean;
     is_public_view?: boolean;
     is_group_shared_view?: boolean;
     selected_group?: NoteGroup | null;

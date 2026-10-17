@@ -74,17 +74,22 @@ class NoteApp extends Model
             ->wherePivot('item_type', 'app');
     }
 
-    public function canUserEdit(?User $user): bool
+    public function isOwner(?User $user): bool
     {
-        if ($this->is_public && $this->public_permission === 'edit') {
-            return true;
-        }
+        return $user && $this->owner_id === $user->id;
+    }
 
+    public function isCollaborator(?User $user): bool
+    {
         if (! $user) {
             return false;
         }
-        if ($this->owner_id === $user->id) {
-            return true;
+
+        if ($this->relationLoaded('collaborators')) {
+            return $this->collaborators->contains(function ($collab) use ($user) {
+                return ($collab->user_id && $collab->user_id === $user->id)
+                    || (! empty($collab->invited_email) && strtolower($collab->invited_email) === strtolower($user->email));
+            });
         }
 
         return $this->collaborators()
@@ -93,6 +98,20 @@ class NoteApp extends Model
                     ->orWhere('invited_email', $user->email);
             })
             ->exists();
+    }
+
+    public function isOwnerOrCollaborator(?User $user): bool
+    {
+        return $this->isOwner($user) || $this->isCollaborator($user);
+    }
+
+    public function canUserEdit(?User $user): bool
+    {
+        if ($this->is_public && $this->public_permission === 'edit') {
+            return true;
+        }
+
+        return $this->isOwnerOrCollaborator($user);
     }
 
     public function canUserView(?User $user): bool

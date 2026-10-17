@@ -14,6 +14,7 @@ export interface WorkspaceNavbarProps {
     totalNotesAll: number;
     canEdit: boolean;
     isOwner: boolean;
+    isCollaborator?: boolean;
     isGroupSharedView?: boolean;
     sharedGroup?: NoteGroup | null;
     isSaved?: boolean;
@@ -41,6 +42,7 @@ export default function WorkspaceNavbar({
     totalNotesAll,
     canEdit,
     isOwner,
+    isCollaborator = false,
     isGroupSharedView = false,
     sharedGroup,
     isSaved = false,
@@ -62,6 +64,16 @@ export default function WorkspaceNavbar({
     const { auth } = usePage<PageProps>().props;
     const user = auth?.user;
     const backHref = canEdit ? '/app' : (user ? '/app' : '/');
+
+    const isCollab = Boolean(
+        isCollaborator ||
+        (user && app.collaborators?.some((c) =>
+            (c.user_id && c.user_id === user.id) ||
+            (c.user && c.user.id === user.id) ||
+            (c.invited_email && c.invited_email.toLowerCase() === user.email?.toLowerCase())
+        ))
+    );
+    const canManageSettings = isOwner || isCollab;
 
     const [savedState, setSavedState] = useState<boolean>(Boolean(isSaved));
     const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -201,7 +213,7 @@ export default function WorkspaceNavbar({
                         </button>
                     )}
 
-                    {!isGroupSharedView && canEdit && onOpenEditApp && (
+                    {!isGroupSharedView && canManageSettings && onOpenEditApp && (
                         <button
                             type="button"
                             onClick={onOpenEditApp}

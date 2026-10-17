@@ -7,6 +7,7 @@ import { ArrowLeft, Users, Share2, Settings } from 'lucide-react';
 interface WorkspaceHeaderProps {
     app: NoteApp;
     isOwner: boolean;
+    isCollaborator?: boolean;
     groupsCount: number;
     notesCount: number;
     onOpenEdit?: () => void;
@@ -19,6 +20,7 @@ interface WorkspaceHeaderProps {
 export default function WorkspaceHeader({
     app,
     isOwner,
+    isCollaborator = false,
     groupsCount,
     notesCount,
     onOpenEdit,
@@ -59,7 +61,7 @@ export default function WorkspaceHeader({
 
                 {/* Right: Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2.5">
-                    {onOpenEdit && (
+                    {(isOwner || isCollaborator) && onOpenEdit && (
                         <button
                             type="button"
                             onClick={onOpenEdit}

@@ -144,6 +144,7 @@ class PublicController extends Controller
 
         $user = auth('web')->user();
         $isOwner = $user && $app->owner_id === $user->id;
+        $isCollaborator = $app->isCollaborator($user);
         $canEdit = $app->canUserEdit($user);
         $isSaved = $user ? SavedSharedLink::where('user_id', $user->id)->where('item_type', 'app')->where('item_id', $app->id)->exists() : false;
 
@@ -152,6 +153,7 @@ class PublicController extends Controller
             'groups' => $groups,
             'selected_note' => $selectedNote,
             'is_owner' => $isOwner,
+            'is_collaborator' => $isCollaborator,
             'can_edit' => $canEdit,
             'is_saved' => $isSaved,
             'share_item_type' => 'app',
@@ -168,7 +170,7 @@ class PublicController extends Controller
     {
         $group = NoteGroup::where('public_token', $slug_token)
             ->where('is_public', true)
-            ->with(['app.owner', 'notes' => function ($q) {
+            ->with(['app.owner', 'app.collaborators.user', 'notes' => function ($q) {
                 $q->with(['attachments'])
                     ->orderByDesc('is_pinned')
                     ->orderBy('sort_order', 'asc')
@@ -193,6 +195,7 @@ class PublicController extends Controller
 
         $user = auth('web')->user();
         $isOwner = $user && $app && $app->owner_id === $user->id;
+        $isCollaborator = ($user && $app) ? $app->isCollaborator($user) : false;
         $canEdit = $group->canUserEdit($user);
 
         $selectedNoteId = $request->query('note_id');
@@ -214,6 +217,7 @@ class PublicController extends Controller
             'selected_note' => $selectedNote,
             'selected_group' => $group,
             'is_owner' => $isOwner,
+            'is_collaborator' => $isCollaborator,
             'can_edit' => $canEdit,
             'is_saved' => $isSaved,
             'share_item_type' => 'group',
@@ -269,6 +273,7 @@ class PublicController extends Controller
         $app = $note->group?->app;
         $user = auth('web')->user();
         $isOwner = $user && $app && $app->owner_id === $user->id;
+        $isCollaborator = ($user && $app) ? ($app->isCollaborator($user) || $note->isCollaborator($user)) : false;
         $canEdit = $note->canUserEdit($user);
         $isSaved = $user ? SavedSharedLink::where('user_id', $user->id)->where('item_type', 'note')->where('item_id', $note->id)->exists() : false;
         $userReminder = $user ? UserNoteReminder::where('user_id', $user->id)->where('note_id', $note->id)->first() : null;
@@ -287,6 +292,7 @@ class PublicController extends Controller
             'is_saved' => $isSaved,
             'can_edit' => $canEdit,
             'is_owner' => $isOwner,
+            'is_collaborator' => $isCollaborator,
             'share_public_token' => $slug_token,
             'seo' => $seo,
         ]);

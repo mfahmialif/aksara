@@ -20,6 +20,7 @@ export default function NoteEditor({
     selected_group = null,
     is_owner,
     can_edit,
+    is_collaborator = false,
     is_public_view = false,
     is_group_shared_view = false,
     is_single_note_view = false,
@@ -35,6 +36,16 @@ export default function NoteEditor({
     const [localApp, setLocalApp] = useState<NoteApp>(app);
     const [localGroups, setLocalGroups] = useState<NoteGroup[]>(groups);
     const topicLabel = localApp.topic_label || 'Topik';
+
+    const isCollaborator = Boolean(
+        is_collaborator ||
+        (user && localApp.collaborators?.some((c) =>
+            (c.user_id && c.user_id === user.id) ||
+            (c.user && c.user.id === user.id) ||
+            (c.invited_email && c.invited_email.toLowerCase() === user.email?.toLowerCase())
+        ))
+    );
+    const canManageSettings = is_owner || isCollaborator;
 
     const handleUpdateTopicLabel = async (newLabel: string) => {
         const trimmed = newLabel.trim() || 'Topik';
@@ -582,6 +593,7 @@ export default function NoteEditor({
             totalNotesAll={allNotes.length}
             canEdit={can_edit}
             isOwner={is_owner}
+            isCollaborator={isCollaborator}
             isGroupSharedView={is_group_shared_view}
             sharedGroup={selected_group}
             isSaved={is_saved}
@@ -589,7 +601,7 @@ export default function NoteEditor({
             shareItemId={share_item_id || (is_group_shared_view && selected_group ? selected_group.id : (is_single_note_view && selected_note ? selected_note.id : localApp.id))}
             sharePublicToken={share_public_token || (is_group_shared_view && selected_group ? selected_group.public_token || undefined : (is_single_note_view && selected_note ? selected_note.public_token || undefined : localApp.public_token))}
             isPublicView={is_public_view}
-            onOpenEditApp={() => setEditAppModalOpen(true)}
+            onOpenEditApp={canManageSettings ? () => setEditAppModalOpen(true) : undefined}
             onOpenCollab={() => setAppCollabOpen(true)}
             onOpenShare={() => setAppShareOpen(true)}
             onOpenShareGroup={handleOpenShareGroup}
@@ -686,15 +698,17 @@ export default function NoteEditor({
             )}
 
             {/* App Level Edit & Settings Modal */}
-            <EditAppModal
-                isOpen={editAppModalOpen}
-                onClose={() => setEditAppModalOpen(false)}
-                app={localApp}
-                isOwner={is_owner}
-                onUpdated={(updated) => {
-                    setLocalApp(updated);
-                }}
-            />
+            {canManageSettings && (
+                <EditAppModal
+                    isOpen={editAppModalOpen}
+                    onClose={() => setEditAppModalOpen(false)}
+                    app={localApp}
+                    isOwner={is_owner}
+                    onUpdated={(updated) => {
+                        setLocalApp(updated);
+                    }}
+                />
+            )}
 
             {/* App Level Collaborators Modal */}
             <CollaboratorsModal
