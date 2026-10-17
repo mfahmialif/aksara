@@ -357,6 +357,40 @@ export default function NoteEditor({
         }
     };
 
+    const handleReorderGroups = async (
+        reorderedGroups: { id: string; sort_order: number }[]
+    ) => {
+        const orderMap = new Map<string, number>();
+        reorderedGroups.forEach((item) => {
+            orderMap.set(item.id, item.sort_order);
+        });
+
+        // Optimistically update local groups sorted by new sort_order
+        setLocalGroups((prevGroups) => {
+            const updated = prevGroups.map((g) => {
+                const newOrder = orderMap.get(g.id);
+                return newOrder !== undefined ? { ...g, sort_order: newOrder } : g;
+            });
+            return updated.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        });
+
+        try {
+            const csrfToken = getCsrfToken();
+            await fetch('/groups/reorder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ groups: reorderedGroups }),
+            });
+        } catch {
+            // ignore network error
+        }
+    };
+
     const handleOpenCreateModal = (format: 'text' | 'checklist' | 'drawing' = 'text') => {
         const targetGroupId = activeGroupId === 'all' ? (localGroups[0]?.id || '') : activeGroupId;
         const newDraft: Note = {
@@ -588,6 +622,7 @@ export default function NoteEditor({
                     onOpenEditGroup={handleOpenEditGroup}
                     onDeleteGroup={handleDeleteGroup}
                     onOpenShareGroup={handleOpenShareGroup}
+                    onReorderGroups={handleReorderGroups}
                     isMinimized={isTopicSidebarMinimized}
                     setIsMinimized={(val) => handleToggleTopicSidebar(val)}
                     mobileDrawerOpen={mobileTopicDrawerOpen}

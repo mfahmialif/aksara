@@ -74,4 +74,40 @@ class NoteGroupColorTest extends TestCase
             'color' => '#FF8FAB',
         ]);
     }
+
+    public function test_user_can_reorder_folders(): void
+    {
+        $user = User::factory()->create();
+        $app = NoteApp::create([
+            'owner_id' => $user->id,
+            'name' => 'Test App',
+            'color_theme' => 'yellow',
+            'public_token' => 'token-test-'.uniqid(),
+        ]);
+
+        $groupA = NoteGroup::create([
+            'note_app_id' => $app->id,
+            'name' => 'Folder A',
+            'sort_order' => 1,
+        ]);
+
+        $groupB = NoteGroup::create([
+            'note_app_id' => $app->id,
+            'name' => 'Folder B',
+            'sort_order' => 2,
+        ]);
+
+        $response = $this->actingAs($user, 'web')->postJson('/groups/reorder', [
+            'groups' => [
+                ['id' => $groupB->id, 'sort_order' => 1],
+                ['id' => $groupA->id, 'sort_order' => 2],
+            ],
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
+
+        $this->assertEquals(1, $groupB->fresh()->sort_order);
+        $this->assertEquals(2, $groupA->fresh()->sort_order);
+    }
 }

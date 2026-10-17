@@ -41,6 +41,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // --- Note & Group Operations (Authorized via canUserEdit / canUserView in controllers) ---
 // Groups
+Route::post('/groups/reorder', [NoteGroupController::class, 'reorder'])->name('groups.reorder');
 Route::post('/app/{app}/groups', [NoteGroupController::class, 'store'])->name('groups.store');
 Route::put('/groups/{group}', [NoteGroupController::class, 'update'])->name('groups.update');
 Route::delete('/groups/{group}', [NoteGroupController::class, 'destroy'])->name('groups.destroy');

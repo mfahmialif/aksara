@@ -356,7 +356,7 @@ export default function ShareModal({
                     ? 'Bagikan Topik Publik'
                     : 'Bagikan Catatan Publik'
             }
-            maxWidth="md"
+            maxWidth="lg"
         >
             <div className="space-y-5">
                 {!canConfigure ? (
@@ -741,35 +741,64 @@ export default function ShareModal({
 
                                 {/* Custom Shortlink Form */}
                                 <div className="pt-3 border-t-2 border-black">
-                                    <label className="block text-xs font-black uppercase tracking-wider text-black font-heading mb-1">
-                                        Kustomisasi Shortlink (Semau Anda)
-                                    </label>
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <label className="block text-xs font-black uppercase tracking-wider text-black font-heading">
+                                            Kustomisasi Shortlink (Semau Anda)
+                                        </label>
+                                        <span className="text-[10px] font-mono font-bold bg-[#FFDC58] px-1.5 py-0.5 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] uppercase">
+                                            Bebas Kustom
+                                        </span>
+                                    </div>
                                     <p className="text-[11px] text-neutral-600 font-medium mb-3">
                                         Buat tautan yang keren dan mudah diingat sesuka Anda, asal belum dipakai pengguna lain.
                                     </p>
 
                                     <form onSubmit={handleSaveCustomSlug} className="space-y-3">
-                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                            <div className="flex-1 flex items-center bg-[#FFFDF8] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] px-3 py-1.5 focus-within:ring-2 focus-within:ring-black">
-                                                <span className="text-xs font-bold font-mono text-neutral-500 shrink-0 select-none">
-                                                    {typeof window !== 'undefined' ? `${window.location.host}/s/` : '.../s/'}
-                                                </span>
-                                                <input
-                                                    type="text"
-                                                    value={inputSlug}
-                                                    onChange={(e) => handleSlugInputChange(e.target.value)}
-                                                    placeholder={
-                                                        level === 'app'
-                                                            ? 'misal: ruang-kerja-tim'
-                                                            : level === 'group'
-                                                            ? 'misal: topik-sprint'
-                                                            : 'misal: catatan-laravel'
-                                                    }
-                                                    maxLength={60}
-                                                    className="w-full bg-transparent text-xs sm:text-sm font-bold font-mono text-black outline-none pl-1"
-                                                />
-                                                {checkingAvailability && (
-                                                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-neutral-400 shrink-0" />
+                                        {/* Full width roomy input container */}
+                                        <div className="flex items-center bg-[#FFFDF8] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] px-3 py-2.5 focus-within:ring-2 focus-within:ring-black">
+                                            <span className="text-xs sm:text-sm font-bold font-mono text-neutral-600 bg-neutral-200/80 px-2 py-1 border border-black/30 shrink-0 select-none mr-2">
+                                                {typeof window !== 'undefined' ? `${window.location.host}/s/` : '.../s/'}
+                                            </span>
+                                            <input
+                                                type="text"
+                                                value={inputSlug}
+                                                onChange={(e) => handleSlugInputChange(e.target.value)}
+                                                placeholder={
+                                                    level === 'app'
+                                                        ? 'ruang-kerja-tim'
+                                                        : level === 'group'
+                                                        ? 'topik-sprint'
+                                                        : 'catatan-laravel'
+                                                }
+                                                maxLength={60}
+                                                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-bold font-mono text-black outline-none placeholder:text-neutral-400 placeholder:font-normal"
+                                            />
+                                            {checkingAvailability && (
+                                                <RefreshCw className="w-4 h-4 animate-spin text-neutral-500 shrink-0 ml-1.5" />
+                                            )}
+                                        </div>
+
+                                        {/* Bottom Action & Live Feedback Row */}
+                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-0.5">
+                                            <div className="min-h-[28px] flex items-center">
+                                                {availabilityStatus && inputSlug !== currentSlug ? (
+                                                    <div className="flex items-center gap-1.5 text-xs font-bold">
+                                                        {availabilityStatus.available ? (
+                                                            <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-100 px-2.5 py-1 border border-emerald-600 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                                                                {availabilityStatus.message}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1.5 text-rose-800 bg-rose-100 px-2.5 py-1 border border-rose-600 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                                                                <AlertCircle className="w-3.5 h-3.5 text-rose-700" />
+                                                                {availabilityStatus.message}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[11px] text-neutral-500 font-medium">
+                                                        Hanya huruf kecil, angka, tanda strip (-), atau garis bawah (_)
+                                                    </span>
                                                 )}
                                             </div>
 
@@ -784,38 +813,21 @@ export default function ShareModal({
                                                     inputSlug.trim() === currentSlug ||
                                                     (availabilityStatus !== null && !availabilityStatus.available)
                                                 }
-                                                className="shrink-0"
+                                                className="w-full sm:w-auto shrink-0 font-heading font-black"
                                             >
                                                 {savingSlug ? 'Menyimpan...' : 'Terapkan Shortlink'}
                                             </NeoButton>
                                         </div>
 
-                                        {/* Live feedback badge */}
-                                        {availabilityStatus && inputSlug !== currentSlug && (
-                                            <div className="flex items-center gap-1.5 text-xs font-bold">
-                                                {availabilityStatus.available ? (
-                                                    <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 border border-emerald-500">
-                                                        <CheckCircle2 className="w-3.5 h-3.5" />
-                                                        {availabilityStatus.message}
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2 py-0.5 border border-rose-500">
-                                                        <AlertCircle className="w-3.5 h-3.5" />
-                                                        {availabilityStatus.message}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-
                                         {slugSuccess && (
-                                            <div className="p-2 bg-emerald-50 border-2 border-emerald-600 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                                            <div className="p-2.5 bg-emerald-50 border-2 border-emerald-600 text-emerald-800 text-xs font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                                                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                                                 {slugSuccess}
                                             </div>
                                         )}
 
                                         {slugError && (
-                                            <div className="p-2 bg-rose-50 border-2 border-rose-600 text-rose-800 text-xs font-bold flex items-center gap-1.5">
+                                            <div className="p-2.5 bg-rose-50 border-2 border-rose-600 text-rose-800 text-xs font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                                                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                                                 {slugError}
                                             </div>

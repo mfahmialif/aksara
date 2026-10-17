@@ -5,7 +5,8 @@ import { NeoInput } from '@/Components/UI/NeoInput';
 import NeoButton from '@/Components/UI/NeoButton';
 import {
     FolderKanban, Plus, Search, ChevronLeft, ChevronRight,
-    Edit3, Trash2, Share2, BookOpen, X, Layers, Settings2, Check
+    Edit3, Trash2, Share2, BookOpen, X, Layers, Settings2, Check,
+    GripVertical
 } from 'lucide-react';
 
 export interface FloatingTopicSidebarProps {
@@ -24,6 +25,7 @@ export interface FloatingTopicSidebarProps {
     onOpenEditGroup: (group: NoteGroup) => void;
     onDeleteGroup: (groupId: string) => void;
     onOpenShareGroup?: (group: NoteGroup) => void;
+    onReorderGroups?: (reorderedGroups: { id: string; sort_order: number }[]) => void;
     isMinimized: boolean;
     setIsMinimized: (val: boolean) => void;
     mobileDrawerOpen?: boolean;
@@ -57,6 +59,7 @@ export default function FloatingTopicSidebar({
     onOpenEditGroup,
     onDeleteGroup,
     onOpenShareGroup,
+    onReorderGroups,
     isMinimized,
     setIsMinimized,
     mobileDrawerOpen: controlledMobileDrawerOpen,
@@ -73,6 +76,53 @@ export default function FloatingTopicSidebar({
         }
     };
 
+    // Local reactive groups state for live drag reordering
+    const [localGroupsList, setLocalGroupsList] = useState<NoteGroup[]>(groups);
+    const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
+
+    useEffect(() => {
+        setLocalGroupsList(groups);
+    }, [groups]);
+
+    const canDrag = canEdit && !isGroupSharedView && !searchQuery.trim();
+
+    const handleDragStart = (e: React.DragEvent, group: NoteGroup) => {
+        if (!canDrag) return;
+        setDraggedGroupId(group.id);
+        e.dataTransfer.setData('text/plain', group.id);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e: React.DragEvent, targetGroup: NoteGroup) => {
+        if (!canDrag || !draggedGroupId || draggedGroupId === targetGroup.id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+
+        setLocalGroupsList((prev) => {
+            const fromIndex = prev.findIndex((g) => g.id === draggedGroupId);
+            const toIndex = prev.findIndex((g) => g.id === targetGroup.id);
+            if (fromIndex < 0 || toIndex < 0) return prev;
+
+            const updated = [...prev];
+            const [moved] = updated.splice(fromIndex, 1);
+            updated.splice(toIndex, 0, moved);
+            return updated;
+        });
+    };
+
+    const handleDragEnd = () => {
+        const currentId = draggedGroupId;
+        setDraggedGroupId(null);
+        if (!currentId || !onReorderGroups) return;
+
+        const payload = localGroupsList.map((g, idx) => ({
+            id: g.id,
+            sort_order: idx + 1,
+        }));
+        onReorderGroups(payload);
+    };
+
     // Modal state for owner to rename topic label
     const [renameModalOpen, setRenameModalOpen] = useState(false);
     const [tempTopicLabel, setTempTopicLabel] = useState(topicLabel);
@@ -83,12 +133,12 @@ export default function FloatingTopicSidebar({
     }, [topicLabel]);
 
     // Filter topics by quick search
-    const filteredGroups = groups.filter((g) =>
+    const filteredGroups = localGroupsList.filter((g) =>
         g.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
     );
 
     // Find active group metadata
-    const activeGroup = groups.find((g) => g.id === activeGroupId);
+    const activeGroup = localGroupsList.find((g) => g.id === activeGroupId);
     const activeGroupName =
         activeGroupId === 'all'
             ? `Semua ${topicLabel}`
@@ -250,14 +300,21 @@ export default function FloatingTopicSidebar({
                             ) : (
                                 filteredGroups.map((group) => {
                                     const isActive = activeGroupId === group.id;
+                                    const isDragging = draggedGroupId === group.id;
                                     const noteCount = group.notes?.length || 0;
                                     const topicColor = group.color || '#FFDC58';
 
                                     return (
                                         <div
                                             key={group.id}
-                                            className={`group/item border-2 border-black transition-all flex items-start justify-between p-1.5 gap-1.5 ${
-                                                isActive
+                                            draggable={canDrag}
+                                            onDragStart={(e) => handleDragStart(e, group)}
+                                            onDragOver={(e) => handleDragOver(e, group)}
+                                            onDragEnd={handleDragEnd}
+                                            className={`group/item border-2 border-black transition-all flex items-start justify-between p-2 gap-2 select-none ${
+                                                isDragging
+                                                    ? 'opacity-40 border-dashed bg-neutral-200'
+                                                    : isActive
                                                     ? 'shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-black ring-1 ring-black'
                                                     : 'bg-white hover:bg-neutral-50 shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)]'
                                             }`}
@@ -265,28 +322,31 @@ export default function FloatingTopicSidebar({
                                                 backgroundColor: isActive ? topicColor : '#FFFFFF',
                                             }}
                                         >
-                                            <button
-                                                type="button"
+                                            <div
                                                 onClick={() => handleSelectTopic(group.id)}
-                                                className="flex-1 min-w-0 text-left flex items-start gap-2 pr-1 cursor-pointer"
+                                                className="flex-1 min-w-0 text-left flex items-start gap-1.5 cursor-pointer"
                                                 title={`${topicLabel}: ${group.name} (${noteCount} catatan)`}
                                             >
+                                                {canDrag && (
+                                                    <div
+                                                        className="cursor-grab active:cursor-grabbing text-neutral-400 group-hover/item:text-black shrink-0 mt-0.5 -ml-0.5"
+                                                        title="Tarik untuk memindahkan urutan folder"
+                                                    >
+                                                        <GripVertical className="w-3.5 h-3.5" />
+                                                    </div>
+                                                )}
                                                 <span
-                                                    className="w-3 h-3 border border-black shrink-0 mt-0.5 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                                                    className="w-3.5 h-3.5 border border-black shrink-0 mt-0.5 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
                                                     style={{ backgroundColor: topicColor }}
                                                 />
                                                 <span className="text-xs font-heading font-bold uppercase break-words whitespace-normal min-w-0 text-black leading-tight">
                                                     {group.name}
                                                 </span>
-                                            </button>
+                                            </div>
 
                                             <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                                                <span className="px-1.5 py-0.2 bg-black text-white text-[10px] font-black shrink-0">
-                                                    {noteCount}
-                                                </span>
-
-                                                {/* Action Buttons: Share, Edit, Delete */}
-                                                <div className="flex items-center gap-0.5 opacity-90 sm:opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                                {/* Action Buttons: Share, Edit, Delete (hidden unless hovered so badge is perfectly aligned with Semua Mata Kuliah) */}
+                                                <div className="hidden group-hover/item:flex items-center gap-0.5 animate-in fade-in duration-100">
                                                     <button
                                                         type="button"
                                                         onClick={(e) => {
@@ -326,6 +386,11 @@ export default function FloatingTopicSidebar({
                                                         </>
                                                     )}
                                                 </div>
+
+                                                {/* Note Count Badge (ALWAYS at the far right, matching SEMUA MATA KULIAH) */}
+                                                <span className="px-1.5 py-0.2 bg-black text-white text-[10px] font-black shrink-0 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                                                    {noteCount}
+                                                </span>
                                             </div>
                                         </div>
                                     );
@@ -435,7 +500,7 @@ export default function FloatingTopicSidebar({
                                     </button>
                                 )}
 
-                                {groups.map((group) => {
+                                {localGroupsList.map((group) => {
                                     const isActive = activeGroupId === group.id;
                                     const noteCount = group.notes?.length || 0;
                                     const topicColor = group.color || '#FFDC58';
@@ -467,10 +532,6 @@ export default function FloatingTopicSidebar({
                                             </button>
 
                                             <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-                                                <span className="px-1.5 py-0.2 bg-black text-white text-[10px] font-black">
-                                                    {noteCount}
-                                                </span>
-
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -509,6 +570,10 @@ export default function FloatingTopicSidebar({
                                                         </button>
                                                     </>
                                                 )}
+
+                                                <span className="px-1.5 py-0.5 bg-black text-white text-[10px] font-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                                                    {noteCount}
+                                                </span>
                                             </div>
                                         </div>
                                     );

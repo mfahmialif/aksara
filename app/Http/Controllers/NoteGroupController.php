@@ -55,6 +55,25 @@ class NoteGroupController extends Controller
         return redirect()->route('public.app', $app->public_token)->with('success', 'Folder "'.$group->name.'" berhasil ditambahkan.');
     }
 
+    public function reorder(Request $request)
+    {
+        $user = Auth::user();
+        $validated = $request->validate([
+            'groups' => 'required|array',
+            'groups.*.id' => 'required|string|exists:note_groups,id',
+            'groups.*.sort_order' => 'required|integer',
+        ]);
+
+        foreach ($validated['groups'] as $item) {
+            $group = NoteGroup::with('app')->find($item['id']);
+            if ($group && $group->app->canUserEdit($user)) {
+                $group->update(['sort_order' => $item['sort_order']]);
+            }
+        }
+
+        return response()->json(['success' => true]);
+    }
+
     public function update(Request $request, $id)
     {
         $user = Auth::user();
