@@ -7,6 +7,7 @@ import {
     Paperclip, Share2, Trash2, Edit3, Check, X, BookOpen,
     ArrowRight, FileText, Pin, GripVertical, Loader2, Sparkles
 } from 'lucide-react';
+import { parseNoteSnippet } from '@/utils/textUtils';
 
 interface WorkspaceExplorerProps {
     groups: NoteGroup[];
@@ -323,17 +324,7 @@ export default function WorkspaceExplorer({
     };
 
     const parseContentSnippet = (contentJson: string | null): string => {
-        if (!contentJson) return 'Catatan kosong...';
-        try {
-            const parsed = JSON.parse(contentJson);
-            if (parsed.html) {
-                const text = parsed.html.replace(/<[^>]*>/g, '').trim();
-                return text.slice(0, 100) || 'Catatan dokumen tanpa teks.';
-            }
-        } catch {
-            return contentJson.replace(/<[^>]*>/g, '').slice(0, 100) || 'Catatan dokumen...';
-        }
-        return 'Catatan dokumen...';
+        return parseNoteSnippet(contentJson, 180);
     };
 
     const getChecklistSummary = (contentJson: string | null) => {
@@ -487,7 +478,7 @@ export default function WorkspaceExplorer({
                     </h4>
 
                     {/* Row 4: Excerpt / Summary */}
-                    <p className="text-xs text-neutral-600 font-medium line-clamp-3 mb-4 leading-relaxed">
+                    <p className="text-xs text-neutral-600 font-medium line-clamp-3 mb-4 leading-relaxed whitespace-pre-line break-words">
                         {snippet}
                     </p>
                 </div>
