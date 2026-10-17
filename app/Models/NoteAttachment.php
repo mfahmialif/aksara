@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class NoteAttachment extends Model
 {
@@ -22,6 +21,8 @@ class NoteAttachment extends Model
 
     protected $appends = [
         'url',
+        'preview_url',
+        'download_url',
         'formatted_size',
         'is_image',
         'is_pdf',
@@ -34,7 +35,17 @@ class NoteAttachment extends Model
 
     public function getUrlAttribute(): string
     {
-        return Storage::disk('public')->url($this->file_path);
+        return route('attachments.preview', ['attachment' => $this->id], false);
+    }
+
+    public function getPreviewUrlAttribute(): string
+    {
+        return route('attachments.preview', ['attachment' => $this->id], false);
+    }
+
+    public function getDownloadUrlAttribute(): string
+    {
+        return route('attachments.download', ['attachment' => $this->id], false);
     }
 
     public function getFormattedSizeAttribute(): string
@@ -51,11 +62,16 @@ class NoteAttachment extends Model
 
     public function getIsImageAttribute(): bool
     {
-        return str_starts_with($this->mime_type ?? '', 'image/');
+        $ext = strtolower(pathinfo($this->file_name, PATHINFO_EXTENSION));
+
+        return str_starts_with($this->mime_type ?? '', 'image/')
+            || in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico']);
     }
 
     public function getIsPdfAttribute(): bool
     {
-        return $this->mime_type === 'application/pdf' || str_ends_with(strtolower($this->file_name), '.pdf');
+        $ext = strtolower(pathinfo($this->file_name, PATHINFO_EXTENSION));
+
+        return $this->mime_type === 'application/pdf' || $ext === 'pdf';
     }
 }

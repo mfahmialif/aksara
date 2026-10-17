@@ -503,19 +503,34 @@ class NoteController extends Controller
         $attachment = NoteAttachment::with('note.group.app')->findOrFail($attachmentId);
         $user = Auth::guard('web')->user();
 
-        if (! $attachment->note->canUserView($user)) {
+        if (! $attachment->note || ! $attachment->note->canUserView($user)) {
             abort(403, 'Akses lampiran ditolak.');
         }
 
-        if (! Storage::disk('public')->exists($attachment->file_path)) {
-            abort(404, 'File lampiran tidak ditemukan di penyimpanan.');
+        $resolved = $this->resolveAttachmentPath($attachment);
+
+        if (! $resolved) {
+            abort(404, 'File lampiran tidak ditemukan di penyimpanan server.');
         }
 
-        return Storage::disk('public')->response(
-            $attachment->file_path,
-            $attachment->file_name,
-            ['Content-Type' => $attachment->mime_type ?: 'application/octet-stream']
-        );
+        $mimeType = $this->resolveMimeType($attachment, $resolved['path'] ?? null);
+
+        if ($resolved['type'] === 'disk') {
+            return Storage::disk($resolved['disk'])->response(
+                $resolved['path'],
+                $attachment->file_name,
+                [
+                    'Content-Type' => $mimeType,
+                    'X-Frame-Options' => 'SAMEORIGIN',
+                ]
+            );
+        }
+
+        return response()->file($resolved['path'], [
+            'Content-Type' => $mimeType,
+            'Content-Disposition' => 'inline; filename="'.str_replace('"', '\"', $attachment->file_name).'"',
+            'X-Frame-Options' => 'SAMEORIGIN',
+        ]);
     }
 
     public function downloadAttachment($attachmentId)
@@ -523,15 +538,120 @@ class NoteController extends Controller
         $attachment = NoteAttachment::with('note.group.app')->findOrFail($attachmentId);
         $user = Auth::guard('web')->user();
 
-        if (! $attachment->note->canUserView($user)) {
+        if (! $attachment->note || ! $attachment->note->canUserView($user)) {
             abort(403, 'Akses unduhan ditolak.');
         }
 
-        if (! Storage::disk('public')->exists($attachment->file_path)) {
-            abort(404, 'File lampiran tidak ditemukan di penyimpanan.');
+        $resolved = $this->resolveAttachmentPath($attachment);
+
+        if (! $resolved) {
+            abort(404, 'File lampiran tidak ditemukan di penyimpanan server.');
         }
 
-        return Storage::disk('public')->download($attachment->file_path, $attachment->file_name);
+        $mimeType = $this->resolveMimeType($attachment, $resolved['path'] ?? null);
+
+        if ($resolved['type'] === 'disk') {
+            return Storage::disk($resolved['disk'])->download(
+                $resolved['path'],
+                $attachment->file_name,
+                ['Content-Type' => $mimeType]
+            );
+        }
+
+        return response()->download($resolved['path'], $attachment->file_name, [
+            'Content-Type' => $mimeType,
+        ]);
+    }
+
+    protected function resolveAttachmentPath(NoteAttachment $attachment): ?array
+    {
+        $rawPath = $attachment->file_path;
+        if (empty($rawPath)) {
+            return null;
+        }
+
+        $cleanPath = ltrim($rawPath, '/');
+        $strippedPrefix = preg_replace('#^(public/|storage/)#', '', $cleanPath);
+
+        $candidates = array_unique(array_filter([
+            $rawPath,
+            $cleanPath,
+            $strippedPrefix,
+            'attachments/'.$attachment->note_id.'/'.basename($rawPath),
+        ]));
+
+        foreach (['public', 'local'] as $disk) {
+            foreach ($candidates as $cand) {
+                if (Storage::disk($disk)->exists($cand)) {
+                    return [
+                        'type' => 'disk',
+                        'disk' => $disk,
+                        'path' => $cand,
+                    ];
+                }
+            }
+        }
+
+        $directPaths = [
+            storage_path('app/public/'.$rawPath),
+            storage_path('app/public/'.$cleanPath),
+            storage_path('app/public/'.$strippedPrefix),
+            storage_path('app/'.$rawPath),
+            storage_path('app/'.$cleanPath),
+            public_path('storage/'.$rawPath),
+            public_path('storage/'.$cleanPath),
+            public_path('storage/'.$strippedPrefix),
+            public_path($rawPath),
+            public_path($cleanPath),
+            storage_path('app/public/attachments/'.$attachment->note_id.'/'.basename($rawPath)),
+        ];
+
+        foreach ($directPaths as $dp) {
+            if (file_exists($dp) && ! is_dir($dp)) {
+                return [
+                    'type' => 'file',
+                    'path' => $dp,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    protected function resolveMimeType(NoteAttachment $attachment, ?string $filePath = null): string
+    {
+        $ext = strtolower(pathinfo($attachment->file_name, PATHINFO_EXTENSION));
+
+        $mimeMap = [
+            'pdf' => 'application/pdf',
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'svg' => 'image/svg+xml',
+            'txt' => 'text/plain',
+            'mp4' => 'video/mp4',
+            'zip' => 'application/zip',
+            'json' => 'application/json',
+        ];
+
+        if (isset($mimeMap[$ext])) {
+            return $mimeMap[$ext];
+        }
+
+        if (! empty($attachment->mime_type) && $attachment->mime_type !== 'application/octet-stream') {
+            return $attachment->mime_type;
+        }
+
+        if ($filePath && file_exists($filePath)) {
+            $detected = @mime_content_type($filePath);
+            if ($detected) {
+                return $detected;
+            }
+        }
+
+        return 'application/octet-stream';
     }
 
     public function setPersonalReminder(Request $request, $id)

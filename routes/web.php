@@ -11,6 +11,7 @@ use App\Http\Controllers\PublicController;
 use App\Http\Controllers\SavedLinkController;
 use App\Http\Controllers\UserSettingsController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,6 +32,18 @@ Route::get('/share/note/{slug_token}', fn ($slug_token) => redirect()->route('pu
 // Attachments View & Download (Public or authorized access)
 Route::get('/attachments/{attachment}/preview', [NoteController::class, 'previewAttachment'])->name('attachments.preview');
 Route::get('/attachments/{attachment}/download', [NoteController::class, 'downloadAttachment'])->name('attachments.download');
+
+// Storage fallback route (serves public files seamlessly even if public/storage symlink is missing on production)
+Route::get('/storage/{path}', function (string $path) {
+    if (Storage::disk('public')->exists($path)) {
+        return Storage::disk('public')->response($path);
+    }
+    $direct = storage_path('app/public/'.$path);
+    if (file_exists($direct) && ! is_dir($direct)) {
+        return response()->file($direct);
+    }
+    abort(404);
+})->where('path', '.*')->name('storage.fallback');
 
 // --- Member Authentication Routes ---
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');

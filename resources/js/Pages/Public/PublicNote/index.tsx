@@ -28,7 +28,7 @@ export default function PublicNote({
     const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
 
     const [previewImage, setPreviewImage] = useState<string | null>(null);
-    const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string } | null>(null);
+    const [previewPdf, setPreviewPdf] = useState<{ id?: string; url: string; name: string } | null>(null);
 
     useEffect(() => {
         setLocalNote(note);
@@ -302,14 +302,23 @@ export default function PublicNote({
                             <span className="font-heading font-black text-sm truncate uppercase">
                                 Dokumen PDF: {previewPdf.name}
                             </span>
-                            <button
-                                type="button"
-                                onClick={() => setPreviewPdf(null)}
-                                className="p-1 bg-[#FF6B6B] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black cursor-pointer"
-                                title="Tutup"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={previewPdf.id ? `/attachments/${previewPdf.id}/download` : previewPdf.url}
+                                    download={previewPdf.name}
+                                    className="px-2.5 py-1 bg-[#FFDC58] border-2 border-black text-xs font-bold uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-[#ffe37d] active:translate-x-0.5 active:translate-y-0.5"
+                                >
+                                    Unduh
+                                </a>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewPdf(null)}
+                                    className="p-1 bg-[#FF6B6B] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
+                                    title="Tutup"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                         <iframe
                             src={previewPdf.url}

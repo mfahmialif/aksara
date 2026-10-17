@@ -134,6 +134,14 @@ class Note extends Model
             return true;
         }
 
+        if (! $user) {
+            return false;
+        }
+
+        if ($this->group?->app && $this->group->app->canUserView($user)) {
+            return true;
+        }
+
         return $this->canUserEdit($user);
     }
 }

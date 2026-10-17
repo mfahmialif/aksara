@@ -11,7 +11,7 @@ import { lockBodyScroll, unlockBodyScroll } from '@/utils/modalScrollLock';
 
 export default function PublicApp({ app, groups = [], selected_note, user_reminder }: PublicAppProps) {
     const [previewImage, setPreviewImage] = useState<string | null>(null);
-    const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string } | null>(null);
+    const [previewPdf, setPreviewPdf] = useState<{ id?: string; url: string; name: string } | null>(null);
 
     useEffect(() => {
         const isAnyPreviewOpen = Boolean(previewImage || previewPdf);
@@ -199,8 +199,8 @@ export default function PublicApp({ app, groups = [], selected_note, user_remind
                                                             {isImage && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setPreviewImage(att.url)}
-                                                                    className="p-2 sm:p-1.5 bg-white border border-black hover:bg-neutral-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                                                                    onClick={() => setPreviewImage(att.preview_url || att.url || `/attachments/${att.id}/preview`)}
+                                                                    className="p-2 sm:p-1.5 bg-white border border-black hover:bg-neutral-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                                                                     title="Lihat Gambar"
                                                                     aria-label="Lihat Gambar"
                                                                 >
@@ -211,8 +211,12 @@ export default function PublicApp({ app, groups = [], selected_note, user_remind
                                                             {isPdf && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setPreviewPdf({ url: att.url, name: att.file_name })}
-                                                                    className="p-2 sm:p-1.5 bg-white border border-black hover:bg-neutral-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                                                                    onClick={() => setPreviewPdf({
+                                                                        id: att.id,
+                                                                        url: att.preview_url || att.url || `/attachments/${att.id}/preview`,
+                                                                        name: att.file_name,
+                                                                    })}
+                                                                    className="p-2 sm:p-1.5 bg-white border border-black hover:bg-neutral-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                                                                     title="Lihat PDF"
                                                                     aria-label="Lihat PDF"
                                                                 >
@@ -221,9 +225,9 @@ export default function PublicApp({ app, groups = [], selected_note, user_remind
                                                             )}
 
                                                             <a
-                                                                href={`/attachments/${att.id}/download`}
+                                                                href={att.download_url || `/attachments/${att.id}/download`}
                                                                 download={att.file_name}
-                                                                className="p-2 sm:p-1.5 bg-[#FFDC58] border border-black hover:bg-[#ffe37d] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                                                                className="p-2 sm:p-1.5 bg-[#FFDC58] border border-black hover:bg-[#ffe37d] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                                                                 title="Unduh File"
                                                                 aria-label="Unduh File"
                                                             >
@@ -294,15 +298,24 @@ export default function PublicApp({ app, groups = [], selected_note, user_remind
                             <span className="font-heading font-black text-xs sm:text-sm truncate uppercase">
                                 Dokumen PDF: {previewPdf.name}
                             </span>
-                            <button
-                                type="button"
-                                onClick={() => setPreviewPdf(null)}
-                                className="p-1 bg-[#FF6B6B] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
-                                title="Tutup"
-                                aria-label="Tutup"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={previewPdf.id ? `/attachments/${previewPdf.id}/download` : previewPdf.url}
+                                    download={previewPdf.name}
+                                    className="px-2.5 py-1 bg-[#FFDC58] border-2 border-black text-xs font-bold uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-[#ffe37d] active:translate-x-0.5 active:translate-y-0.5"
+                                >
+                                    Unduh
+                                </a>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewPdf(null)}
+                                    className="p-1 bg-[#FF6B6B] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
+                                    title="Tutup"
+                                    aria-label="Tutup"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                         <iframe
                             src={previewPdf.url}

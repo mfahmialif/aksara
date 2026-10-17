@@ -171,6 +171,26 @@ class PublicNotePersonalReminderTest extends TestCase
         // Unauthenticated guest cannot view or download
         $this->get("/attachments/{$attachment->id}/preview")->assertStatus(403);
         $this->get("/attachments/{$attachment->id}/download")->assertStatus(403);
+
+        // Authenticated owner can view and download private attachment
+        $this->actingAs($owner, 'web');
+        $ownerPreview = $this->get("/attachments/{$attachment->id}/preview");
+        $ownerPreview->assertStatus(200);
+        $ownerPreview->assertHeader('Content-Type', 'application/pdf');
+
+        $ownerDownload = $this->get("/attachments/{$attachment->id}/download");
+        $ownerDownload->assertStatus(200);
+        $ownerDownload->assertDownload('secret.pdf');
+
+        // Attachment model appended attributes
+        $this->assertEquals("/attachments/{$attachment->id}/preview", $attachment->url);
+        $this->assertEquals("/attachments/{$attachment->id}/preview", $attachment->preview_url);
+        $this->assertEquals("/attachments/{$attachment->id}/download", $attachment->download_url);
+        $this->assertTrue($attachment->is_pdf);
+
+        // Storage fallback route
+        $storageRes = $this->get("/storage/{$storedPath}");
+        $storageRes->assertStatus(200);
     }
 
     public function test_user_can_set_and_delete_personal_reminder_on_public_note(): void

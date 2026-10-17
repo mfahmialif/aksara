@@ -97,6 +97,8 @@ export interface NoteAttachment {
     mime_type: string;
     file_size: number;
     url: string;
+    preview_url?: string;
+    download_url?: string;
     formatted_size: string;
     is_image: boolean;
     is_pdf: boolean;

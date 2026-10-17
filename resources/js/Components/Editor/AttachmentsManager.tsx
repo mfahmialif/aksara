@@ -52,7 +52,7 @@ export default function AttachmentsManager({
 
     // Lightbox & PDF preview modals
     const [previewImage, setPreviewImage] = useState<string | null>(null);
-    const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string } | null>(null);
+    const [previewPdf, setPreviewPdf] = useState<{ id?: string; url: string; name: string } | null>(null);
 
     useEffect(() => {
         const isAnyPreviewOpen = Boolean(previewImage || previewPdf);
@@ -307,11 +307,15 @@ export default function AttachmentsManager({
                                 {att.is_image ? (
                                     <button
                                         type="button"
-                                        onClick={() => setPreviewImage(att.url)}
+                                        onClick={() => setPreviewImage(att.preview_url || att.url || `/attachments/${att.id}/preview`)}
                                         className="w-10 h-10 border border-black shrink-0 overflow-hidden bg-neutral-100 cursor-pointer hover:opacity-80"
                                         title="Klik untuk pratinjau"
                                     >
-                                        <img src={att.url} alt={att.file_name} className="w-full h-full object-cover" />
+                                        <img
+                                            src={att.preview_url || att.url || `/attachments/${att.id}/preview`}
+                                            alt={att.file_name}
+                                            className="w-full h-full object-cover"
+                                        />
                                     </button>
                                 ) : (
                                     <div className="w-10 h-10 border border-black shrink-0 flex items-center justify-center bg-white">
@@ -331,8 +335,8 @@ export default function AttachmentsManager({
                                 {att.is_image && (
                                     <button
                                         type="button"
-                                        onClick={() => setPreviewImage(att.url)}
-                                        className="p-1 border border-black bg-white hover:bg-[#A388EE] transition-colors"
+                                        onClick={() => setPreviewImage(att.preview_url || att.url || `/attachments/${att.id}/preview`)}
+                                        className="p-1 border border-black bg-white hover:bg-[#A388EE] transition-colors cursor-pointer"
                                         title="Pratinjau Gambar"
                                     >
                                         <Eye className="w-3.5 h-3.5" />
@@ -342,8 +346,12 @@ export default function AttachmentsManager({
                                 {att.is_pdf && (
                                     <button
                                         type="button"
-                                        onClick={() => setPreviewPdf({ url: att.url, name: att.file_name })}
-                                        className="p-1 border border-black bg-white hover:bg-[#FFDC58] transition-colors"
+                                        onClick={() => setPreviewPdf({
+                                            id: att.id,
+                                            url: att.preview_url || att.url || `/attachments/${att.id}/preview`,
+                                            name: att.file_name,
+                                        })}
+                                        className="p-1 border border-black bg-white hover:bg-[#FFDC58] transition-colors cursor-pointer"
                                         title="Pratinjau PDF"
                                     >
                                         <Eye className="w-3.5 h-3.5" />
@@ -351,11 +359,9 @@ export default function AttachmentsManager({
                                 )}
 
                                 <a
-                                    href={att.url}
+                                    href={att.download_url || `/attachments/${att.id}/download`}
                                     download={att.file_name}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="p-1 border border-black bg-white hover:bg-[#7FBC8C] transition-colors"
+                                    className="p-1 border border-black bg-white hover:bg-[#7FBC8C] transition-colors cursor-pointer"
                                     title="Unduh File"
                                 >
                                     <Download className="w-3.5 h-3.5 text-black" />
@@ -416,9 +422,9 @@ export default function AttachmentsManager({
                             <span className="font-heading font-black text-sm truncate">{previewPdf.name}</span>
                             <div className="flex items-center gap-2">
                                 <a
-                                    href={previewPdf.url}
+                                    href={previewPdf.id ? `/attachments/${previewPdf.id}/download` : previewPdf.url}
                                     download={previewPdf.name}
-                                    className="px-2.5 py-1 bg-white border border-black text-xs font-bold uppercase shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                                    className="px-2.5 py-1 bg-white border border-black text-xs font-bold uppercase shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-50"
                                 >
                                     Unduh
                                 </a>

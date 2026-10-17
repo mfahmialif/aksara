@@ -11,7 +11,7 @@ interface PublicNoteContentProps {
     userReminder?: UserNoteReminder | null;
     canEdit?: boolean;
     onPreviewImage: (url: string) => void;
-    onPreviewPdf: (pdf: { url: string; name: string }) => void;
+    onPreviewPdf: (pdf: { id?: string; url: string; name: string }) => void;
     onToggleChecklist?: (itemId: string) => void;
     onOpenEdit?: () => void;
 }
@@ -169,8 +169,8 @@ export default function PublicNoteContent({
                                         {isImage && (
                                             <button
                                                 type="button"
-                                                onClick={() => onPreviewImage(att.url)}
-                                                className="p-2 sm:p-1.5 bg-white border border-black hover:bg-neutral-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                                                onClick={() => onPreviewImage(att.preview_url || att.url || `/attachments/${att.id}/preview`)}
+                                                className="p-2 sm:p-1.5 bg-white border border-black hover:bg-neutral-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                                                 title="Lihat Gambar"
                                                 aria-label="Lihat Gambar"
                                             >
@@ -181,8 +181,12 @@ export default function PublicNoteContent({
                                         {isPdf && (
                                             <button
                                                 type="button"
-                                                onClick={() => onPreviewPdf({ url: att.url, name: att.file_name })}
-                                                className="p-2 sm:p-1.5 bg-white border border-black hover:bg-neutral-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                                                onClick={() => onPreviewPdf({
+                                                    id: att.id,
+                                                    url: att.preview_url || att.url || `/attachments/${att.id}/preview`,
+                                                    name: att.file_name,
+                                                })}
+                                                className="p-2 sm:p-1.5 bg-white border border-black hover:bg-neutral-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                                                 title="Lihat PDF"
                                                 aria-label="Lihat PDF"
                                             >
@@ -191,9 +195,9 @@ export default function PublicNoteContent({
                                         )}
 
                                         <a
-                                            href={`/attachments/${att.id}/download`}
+                                            href={att.download_url || `/attachments/${att.id}/download`}
                                             download={att.file_name}
-                                            className="p-2 sm:p-1.5 bg-[#FFDC58] border border-black hover:bg-[#ffe37d] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                                            className="p-2 sm:p-1.5 bg-[#FFDC58] border border-black hover:bg-[#ffe37d] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                                             title="Unduh File"
                                             aria-label="Unduh File"
                                         >
