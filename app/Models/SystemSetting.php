@@ -81,8 +81,10 @@ class SystemSetting extends Model
                 'mail.from.name' => $settings['mail_from_name'] ?: 'Aksara Notes',
             ]);
 
-            app()->forgetInstance('mail.manager');
-            Mail::clearResolvedInstances();
+            if (! app()->runningUnitTests()) {
+                app()->forgetInstance('mail.manager');
+                Mail::clearResolvedInstances();
+            }
         } catch (\Throwable $e) {
             // Silently fallback if called before database migrations
         }

@@ -3,15 +3,16 @@ import { usePage, router } from '@inertiajs/react';
 import { NoteApp, PageProps } from '@/types';
 import NeoCard from '@/Components/UI/NeoCard';
 import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
-import { BookOpen, Globe, Lock, ArrowRight, Users, BookmarkCheck, Trash2, User as UserIcon } from 'lucide-react';
+import { BookOpen, Globe, Lock, ArrowRight, Users, BookmarkCheck, Trash2, User as UserIcon, Settings } from 'lucide-react';
 import { getCsrfToken } from '@/utils/csrf';
 
 interface AppCardProps {
     app: NoteApp;
     themeBg: string;
+    onEdit?: (app: NoteApp) => void;
 }
 
-export default function AppCard({ app, themeBg }: AppCardProps) {
+export default function AppCard({ app, themeBg, onEdit }: AppCardProps) {
     const { auth } = usePage<PageProps>().props;
     const isOwner = Boolean(auth?.user?.id && app.owner_id === auth.user.id);
     const isSaved = Boolean(app.is_saved && !isOwner);
@@ -95,6 +96,20 @@ export default function AppCard({ app, themeBg }: AppCardProps) {
                             <span title="Ruang Kolaborasi" className="p-1 bg-white border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
                                 <Users className="w-3.5 h-3.5 text-black" />
                             </span>
+                        )}
+                        {isOwner && onEdit && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onEdit(app);
+                                }}
+                                title="Pengaturan & Edit Ruang Kerja"
+                                className="p-1 bg-white hover:bg-[#FFDC58] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-colors cursor-pointer"
+                            >
+                                <Settings className="w-3.5 h-3.5 text-black" />
+                            </button>
                         )}
                         <span title={app.is_public ? (app.public_permission === 'edit' ? 'Publik (Bisa Diedit)' : 'Publik (Hanya Baca)') : 'Privat'}>
                             {app.is_public ? (

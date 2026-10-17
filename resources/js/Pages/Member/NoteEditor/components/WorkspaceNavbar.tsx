@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { NoteApp, NoteGroup, PageProps } from '@/types';
 import {
-    ArrowLeft, Users, Share2, FolderKanban, Bookmark, BookmarkCheck
+    ArrowLeft, Users, Share2, FolderKanban, Bookmark, BookmarkCheck, Settings
 } from 'lucide-react';
 import { getCsrfToken } from '@/utils/csrf';
 
@@ -21,6 +21,7 @@ export interface WorkspaceNavbarProps {
     shareItemId?: string;
     sharePublicToken?: string;
     isPublicView?: boolean;
+    onOpenEditApp?: () => void;
     onOpenCollab: () => void;
     onOpenShare: () => void;
     onOpenShareGroup?: (group: NoteGroup) => void;
@@ -47,6 +48,7 @@ export default function WorkspaceNavbar({
     shareItemId,
     sharePublicToken,
     isPublicView = false,
+    onOpenEditApp,
     onOpenCollab,
     onOpenShare,
     onOpenShareGroup,
@@ -196,6 +198,18 @@ export default function WorkspaceNavbar({
                                     <span className="hidden sm:inline">Simpan Link</span>
                                 </>
                             )}
+                        </button>
+                    )}
+
+                    {!isGroupSharedView && canEdit && onOpenEditApp && (
+                        <button
+                            type="button"
+                            onClick={onOpenEditApp}
+                            className="h-8 sm:h-9 px-2 sm:px-2.5 bg-white hover:bg-[#FFDC58] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-black cursor-pointer transition-all flex items-center gap-1.5 text-xs font-heading font-black uppercase"
+                            title="Pengaturan & Edit Ruang Kerja"
+                        >
+                            <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                            <span className="hidden sm:inline">Pengaturan</span>
                         </button>
                     )}
 

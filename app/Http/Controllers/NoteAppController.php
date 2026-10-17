@@ -2,16 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\WorkspaceTransferInvitationMail;
 use App\Models\AppNotification;
 use App\Models\Collaborator;
 use App\Models\Note;
 use App\Models\NoteApp;
 use App\Models\NoteGroup;
 use App\Models\SavedSharedLink;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -261,7 +267,7 @@ class NoteAppController extends Controller
             return response()->json([
                 'success' => true,
                 'app' => $app->fresh(),
-                'message' => "Istilah berhasil diubah menjadi '{$app->topic_label}'.",
+                'message' => "Pengaturan ruang kerja '{$app->name}' berhasil diperbarui.",
             ]);
         }
 
@@ -443,5 +449,322 @@ class NoteAppController extends Controller
         ActivityLogger::log('REMOVE_COLLABORATOR', "Menghapus akses kolaborator {$email} dari ruang kerja '{$app->name}'", $app);
 
         return back()->with('success', 'Kolaborator telah dihapus.');
+    }
+
+    /**
+     * Send transfer ownership confirmation email to candidate owner.
+     */
+    public function initiateTransferOwnership($id, Request $request)
+    {
+        $user = Auth::user();
+        $app = NoteApp::findOrFail($id);
+
+        if ($app->owner_id !== $user->id) {
+            abort(403, 'Hanya pemilik sah yang dapat memindahkan kepemilikan ruang kerja ini.');
+        }
+
+        $validated = $request->validate([
+            'email' => 'required|email|max:191',
+        ]);
+
+        $targetEmail = strtolower(trim($validated['email']));
+
+        if ($targetEmail === strtolower($user->email)) {
+            throw ValidationException::withMessages([
+                'email' => 'Anda tidak dapat memindahkan kepemilikan ke alamat email Anda sendiri.',
+            ]);
+        }
+
+        $token = Str::random(40);
+        $transferData = [
+            'app_id' => $app->id,
+            'app_name' => $app->name,
+            'old_owner_id' => $user->id,
+            'old_owner_name' => $user->name,
+            'old_owner_email' => $user->email,
+            'target_email' => $targetEmail,
+            'token' => $token,
+            'created_at' => now()->toIso8601String(),
+        ];
+
+        // Store in cache for 3 days
+        Cache::put("workspace_transfer:{$app->id}", $transferData, now()->addDays(3));
+        Cache::put("workspace_transfer_token:{$token}", $app->id, now()->addDays(3));
+
+        $acceptUrl = URL::temporarySignedRoute(
+            'apps.transfer.show',
+            now()->addDays(3),
+            ['app' => $app->id, 'token' => $token]
+        );
+
+        // Send email with error suppression to prevent crashes if mail is not configured
+        $mailSent = false;
+        try {
+            SystemSetting::applyMailConfig();
+            Mail::to($targetEmail)->send(new WorkspaceTransferInvitationMail($app, $user, $acceptUrl, $targetEmail));
+            $mailSent = true;
+        } catch (\Throwable $e) {
+            Log::warning("Gagal mengirim email transfer workspace: {$e->getMessage()}");
+        }
+
+        // If target user already has an account, send in-app notification
+        $targetUser = User::where('email', $targetEmail)->first();
+        if ($targetUser) {
+            AppNotification::create([
+                'user_id' => $targetUser->id,
+                'title' => '📬 Permintaan Pindah Kepemilikan Ruang Kerja',
+                'message' => "{$user->name} ({$user->email}) ingin memindahkan kepemilikan ruang kerja '{$app->name}' kepada Anda.",
+                'type' => 'workspace_transfer',
+                'action_url' => $acceptUrl,
+                'read_at' => null,
+                'is_archived' => false,
+            ]);
+        }
+
+        ActivityLogger::log('INITIATE_WORKSPACE_TRANSFER', "Mengirim permintaan pemindahan kepemilikan ruang kerja '{$app->name}' ke {$targetEmail}", $app);
+
+        $msg = "Email konfirmasi pemindahan kepemilikan berhasil dikirimkan ke {$targetEmail}.";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'mail_sent' => $mailSent,
+                'pending_transfer' => [
+                    'target_email' => $targetEmail,
+                    'created_at' => $transferData['created_at'],
+                ],
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * Cancel an ongoing pending transfer ownership request.
+     */
+    public function cancelTransferOwnership($id, Request $request)
+    {
+        $user = Auth::user();
+        $app = NoteApp::findOrFail($id);
+
+        if ($app->owner_id !== $user->id) {
+            abort(403, 'Hanya pemilik yang dapat membatalkan pemindahan kepemilikan.');
+        }
+
+        $transfer = Cache::get("workspace_transfer:{$app->id}");
+        if ($transfer) {
+            Cache::forget("workspace_transfer_token:{$transfer['token']}");
+            Cache::forget("workspace_transfer:{$app->id}");
+        }
+
+        ActivityLogger::log('CANCEL_WORKSPACE_TRANSFER', "Membatalkan permintaan pemindahan kepemilikan ruang kerja '{$app->name}'", $app);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Permintaan pemindahan kepemilikan telah dibatalkan.',
+            ]);
+        }
+
+        return back()->with('success', 'Permintaan pemindahan kepemilikan telah dibatalkan.');
+    }
+
+    /**
+     * Check if workspace has pending transfer.
+     */
+    public function getPendingTransfer($id)
+    {
+        $user = Auth::user();
+        $app = NoteApp::findOrFail($id);
+
+        if ($app->owner_id !== $user->id) {
+            return response()->json(['pending' => false]);
+        }
+
+        $transfer = Cache::get("workspace_transfer:{$app->id}");
+
+        return response()->json([
+            'pending' => (bool) $transfer,
+            'transfer' => $transfer ? [
+                'target_email' => $transfer['target_email'],
+                'created_at' => $transfer['created_at'],
+            ] : null,
+        ]);
+    }
+
+    /**
+     * Show the transfer acceptance confirmation screen.
+     */
+    public function showTransferAccept($id, Request $request)
+    {
+        $app = NoteApp::with(['owner'])->findOrFail($id);
+        $transfer = Cache::get("workspace_transfer:{$app->id}");
+        $token = (string) $request->query('token', '');
+
+        if (! $transfer || empty($token) || ! hash_equals((string) $transfer['token'], $token)) {
+            return redirect()->route('welcome')->with('error', 'Tautan pemindahan kepemilikan tidak valid atau telah kedaluwarsa.');
+        }
+
+        // Check authentication: if not logged in, redirect to login with intended URL
+        if (! Auth::guard('web')->check()) {
+            session()->put('url.intended', $request->fullUrl());
+
+            return redirect()->route('login')->with('info', 'Silakan masuk ke akun Anda terlebih dahulu untuk menyetujui pemindahan kepemilikan ruang kerja.');
+        }
+
+        $currentUser = Auth::guard('web')->user();
+
+        // If the user is already the owner
+        if ($currentUser->id === $app->owner_id) {
+            return redirect()->route('apps.show', $app->id)->with('info', 'Anda sudah menjadi pemilik ruang kerja ini.');
+        }
+
+        $isEmailMatch = strtolower($currentUser->email) === strtolower($transfer['target_email']);
+
+        $groupsCount = $app->groups()->count();
+        $notesCount = Note::whereIn('group_id', $app->groups()->pluck('id'))->count();
+
+        return Inertia::render('Member/Workspace/TransferAccept', [
+            'app' => [
+                'id' => $app->id,
+                'name' => $app->name,
+                'color_theme' => $app->color_theme,
+                'description' => $app->description,
+                'topic_label' => $app->topic_label,
+                'groups_count' => $groupsCount,
+                'notes_count' => $notesCount,
+                'owner' => [
+                    'name' => $app->owner?->name ?? 'Pemilik Sebelumnya',
+                    'email' => $app->owner?->email ?? '',
+                    'avatar' => $app->owner?->avatar ?? null,
+                ],
+            ],
+            'transfer' => [
+                'target_email' => $transfer['target_email'],
+                'sender_name' => $transfer['old_owner_name'],
+                'sender_email' => $transfer['old_owner_email'],
+                'created_at' => $transfer['created_at'],
+                'token' => $token,
+            ],
+            'current_user' => [
+                'name' => $currentUser->name,
+                'email' => $currentUser->email,
+            ],
+            'is_email_match' => $isEmailMatch,
+        ]);
+    }
+
+    /**
+     * Accept ownership transfer and crown new owner.
+     */
+    public function acceptTransfer($id, Request $request)
+    {
+        $currentUser = Auth::guard('web')->user();
+        if (! $currentUser) {
+            return redirect()->route('login');
+        }
+
+        $app = NoteApp::findOrFail($id);
+        $transfer = Cache::get("workspace_transfer:{$app->id}");
+        $token = (string) $request->input('token', '');
+
+        if (! $transfer || empty($token) || ! hash_equals((string) $transfer['token'], $token)) {
+            return redirect()->route('apps.index')->with('error', 'Permintaan pemindahan kepemilikan tidak valid atau telah kedaluwarsa.');
+        }
+
+        $oldOwnerId = $app->owner_id;
+        $oldOwner = User::find($oldOwnerId);
+
+        // 1. Transfer ownership to new user
+        $app->owner_id = $currentUser->id;
+        $app->save();
+
+        // 2. Demote previous owner to collaborator (editor) so they retain access
+        if ($oldOwner && $oldOwner->id !== $currentUser->id) {
+            Collaborator::updateOrCreate(
+                [
+                    'collaboratable_type' => NoteApp::class,
+                    'collaboratable_id' => $app->id,
+                    'user_id' => $oldOwner->id,
+                ],
+                [
+                    'invited_email' => strtolower($oldOwner->email),
+                    'permission' => 'edit',
+                ]
+            );
+        }
+
+        // 3. Remove new owner from collaborators list if they were previously a collaborator
+        Collaborator::where('collaboratable_type', NoteApp::class)
+            ->where('collaboratable_id', $app->id)
+            ->where(function ($q) use ($currentUser) {
+                $q->where('user_id', $currentUser->id)
+                    ->orWhere('invited_email', strtolower($currentUser->email));
+            })
+            ->delete();
+
+        // 4. Clear transfer cache
+        Cache::forget("workspace_transfer:{$app->id}");
+        Cache::forget("workspace_transfer_token:{$token}");
+
+        // 5. In-app notifications
+        if ($oldOwner) {
+            AppNotification::create([
+                'user_id' => $oldOwner->id,
+                'title' => '🔄 Pemindahan Kepemilikan Selesai',
+                'message' => "Kepemilikan ruang kerja '{$app->name}' telah resmi dialihkan kepada {$currentUser->name} ({$currentUser->email}). Anda kini terdaftar sebagai kolaborator editor.",
+                'type' => 'workspace_transfer',
+                'action_url' => route('apps.show', $app->id),
+                'read_at' => null,
+                'is_archived' => false,
+            ]);
+        }
+
+        AppNotification::create([
+            'user_id' => $currentUser->id,
+            'title' => '🎉 Selamat Datang, Pemilik Baru!',
+            'message' => "Selamat! Anda sekarang adalah pemilik resmi ruang kerja '{$app->name}'.",
+            'type' => 'workspace_transfer',
+            'action_url' => route('apps.show', $app->id),
+            'read_at' => null,
+            'is_archived' => false,
+        ]);
+
+        ActivityLogger::log('TRANSFER_OWNERSHIP_COMPLETED', "Kepemilikan ruang kerja '{$app->name}' berhasil dialihkan kepada {$currentUser->name} ({$currentUser->email})", $app);
+
+        return redirect()->route('apps.show', $app->id)->with('success', "🎉 Selamat! Anda telah resmi menjadi pemilik ruang kerja '{$app->name}'.");
+    }
+
+    /**
+     * Reject ownership transfer.
+     */
+    public function rejectTransfer($id, Request $request)
+    {
+        $currentUser = Auth::guard('web')->user();
+        $app = NoteApp::findOrFail($id);
+        $transfer = Cache::get("workspace_transfer:{$app->id}");
+        $token = (string) $request->input('token', '');
+
+        if ($transfer && ! empty($token) && hash_equals((string) $transfer['token'], $token)) {
+            Cache::forget("workspace_transfer_token:{$token}");
+            Cache::forget("workspace_transfer:{$app->id}");
+
+            if ($oldOwner = User::find($app->owner_id)) {
+                AppNotification::create([
+                    'user_id' => $oldOwner->id,
+                    'title' => '❌ Pemindahan Kepemilikan Ditolak',
+                    'message' => ($currentUser?->name ?? 'Calon penerima')." menolak permintaan pemindahan kepemilikan ruang kerja '{$app->name}'.",
+                    'type' => 'workspace_transfer',
+                    'action_url' => route('apps.show', $app->id),
+                    'read_at' => null,
+                    'is_archived' => false,
+                ]);
+            }
+
+            ActivityLogger::log('REJECT_WORKSPACE_TRANSFER', "Menolak pemindahan kepemilikan ruang kerja '{$app->name}'", $app);
+        }
+
+        return redirect()->route('apps.index')->with('info', "Anda telah menolak pemindahan kepemilikan ruang kerja '{$app->name}'.");
     }
 }

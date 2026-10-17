@@ -2,13 +2,14 @@ import React from 'react';
 import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
 import { NoteApp } from '@/types';
 import { NeoBadge } from '@/Components/UI/NeoInput';
-import { ArrowLeft, Users, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, Share2, Settings } from 'lucide-react';
 
 interface WorkspaceHeaderProps {
     app: NoteApp;
     isOwner: boolean;
     groupsCount: number;
     notesCount: number;
+    onOpenEdit?: () => void;
     onOpenCollab: () => void;
     onOpenShare: () => void;
     themeBg: string;
@@ -20,6 +21,7 @@ export default function WorkspaceHeader({
     isOwner,
     groupsCount,
     notesCount,
+    onOpenEdit,
     onOpenCollab,
     onOpenShare,
     themeBg,
@@ -57,6 +59,17 @@ export default function WorkspaceHeader({
 
                 {/* Right: Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2.5">
+                    {onOpenEdit && (
+                        <button
+                            type="button"
+                            onClick={onOpenEdit}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-heading font-bold text-xs uppercase hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
+                        >
+                            <Settings className="w-3.5 h-3.5" />
+                            Pengaturan
+                        </button>
+                    )}
+
                     {isOwner && (
                         <button
                             type="button"

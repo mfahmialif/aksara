@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import MemberLayout from '@/Layouts/MemberLayout';
 import NeoButton from '@/Components/UI/NeoButton';
 import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
 import { Plus, BookOpen, Search, X, FolderKanban, Users, Sparkles, Bookmark } from 'lucide-react';
+import { PageProps, NoteApp } from '@/types';
 import { WorkspacePageProps } from './types';
 import CreateAppModal from './components/CreateAppModal';
+import EditAppModal from '@/Components/Modals/EditAppModal';
 import AppCard from './components/AppCard';
 import StandaloneNotesSection from './components/StandaloneNotesSection';
 import SavedLinksSection from './components/SavedLinksSection';
@@ -19,7 +21,9 @@ export default function WorkspaceIndex({
     my_apps = [],
     shared_apps = [],
 }: WorkspacePageProps) {
+    const { auth } = usePage<PageProps>().props;
     const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [editingApp, setEditingApp] = useState<NoteApp | null>(null);
     const [searchQuery, setSearchQuery] = useState(filters?.search || '');
     const [activeType, setActiveType] = useState<'all' | 'my_apps' | 'shared' | 'saved'>(filters?.type || 'all');
 
@@ -296,6 +300,7 @@ export default function WorkspaceIndex({
                                 key={app.id}
                                 app={app}
                                 themeBg={themeColors[app.color_theme] || themeColors.yellow}
+                                onEdit={(targetApp) => setEditingApp(targetApp)}
                             />
                         ))}
                     </div>
@@ -362,6 +367,19 @@ export default function WorkspaceIndex({
                 isOpen={createModalOpen}
                 onClose={() => setCreateModalOpen(false)}
             />
+
+            {/* EDIT APP MODAL */}
+            {editingApp && (
+                <EditAppModal
+                    isOpen={Boolean(editingApp)}
+                    onClose={() => setEditingApp(null)}
+                    app={editingApp}
+                    isOwner={Boolean(auth?.user?.id && editingApp.owner_id === auth.user.id)}
+                    onUpdated={() => {
+                        router.reload({ only: ['apps', 'counts'] });
+                    }}
+                />
+            )}
         </MemberLayout>
     );
 }

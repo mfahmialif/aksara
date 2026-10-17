@@ -45,6 +45,11 @@ Route::get('/storage/{path}', function (string $path) {
     abort(404);
 })->where('path', '.*')->name('storage.fallback');
 
+// Workspace Ownership Transfer Confirmation & Acceptance
+Route::get('/app/{app}/transfer-accept', [NoteAppController::class, 'showTransferAccept'])->name('apps.transfer.show');
+Route::post('/app/{app}/transfer-accept', [NoteAppController::class, 'acceptTransfer'])->name('apps.transfer.accept');
+Route::post('/app/{app}/transfer-reject', [NoteAppController::class, 'rejectTransfer'])->name('apps.transfer.reject');
+
 // --- Member Authentication Routes ---
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::get('/auth/google/redirect', [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
@@ -81,6 +86,11 @@ Route::middleware(['auth:web'])->group(function () {
     Route::delete('/app/{app}', [NoteAppController::class, 'destroy'])->name('apps.destroy');
     Route::post('/app/{app}/collaborators', [NoteAppController::class, 'addCollaborator'])->name('apps.collaborators.store');
     Route::delete('/app/{app}/collaborators/{collabId}', [NoteAppController::class, 'removeCollaborator'])->name('apps.collaborators.destroy');
+
+    // Workspace Ownership Transfer Management
+    Route::get('/app/{app}/pending-transfer', [NoteAppController::class, 'getPendingTransfer'])->name('apps.transfer.pending');
+    Route::post('/app/{app}/transfer-ownership', [NoteAppController::class, 'initiateTransferOwnership'])->name('apps.transfer.initiate');
+    Route::delete('/app/{app}/transfer-ownership', [NoteAppController::class, 'cancelTransferOwnership'])->name('apps.transfer.cancel');
 
     // Sharing & Custom Shortlink
     Route::post('/app/{app}/share', [NoteAppController::class, 'updateSharing'])->name('apps.share.update');

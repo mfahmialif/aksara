@@ -4,6 +4,7 @@ import { Note, PageProps, NoteGroup } from '@/types';
 import MemberLayout from '@/Layouts/MemberLayout';
 import CollaboratorsModal from '@/Components/Modals/CollaboratorsModal';
 import ShareModal from '@/Components/Modals/ShareModal';
+import EditAppModal from '@/Components/Modals/EditAppModal';
 import { NoteEditorProps } from './types';
 import WorkspaceNavbar from './components/WorkspaceNavbar';
 import FloatingTopicSidebar from './components/FloatingTopicSidebar';
@@ -152,6 +153,7 @@ export default function NoteEditor({
     const [categoryFilter, setCategoryFilter] = useState<'all' | 'regular' | 'task'>('all');
 
     // Modals
+    const [editAppModalOpen, setEditAppModalOpen] = useState(false);
     const [appCollabOpen, setAppCollabOpen] = useState(false);
     const [appShareOpen, setAppShareOpen] = useState(false);
     const [noteCollabOpen, setNoteCollabOpen] = useState(false);
@@ -587,6 +589,7 @@ export default function NoteEditor({
             shareItemId={share_item_id || (is_group_shared_view && selected_group ? selected_group.id : (is_single_note_view && selected_note ? selected_note.id : localApp.id))}
             sharePublicToken={share_public_token || (is_group_shared_view && selected_group ? selected_group.public_token || undefined : (is_single_note_view && selected_note ? selected_note.public_token || undefined : localApp.public_token))}
             isPublicView={is_public_view}
+            onOpenEditApp={() => setEditAppModalOpen(true)}
             onOpenCollab={() => setAppCollabOpen(true)}
             onOpenShare={() => setAppShareOpen(true)}
             onOpenShareGroup={handleOpenShareGroup}
@@ -681,6 +684,17 @@ export default function NoteEditor({
                     }}
                 />
             )}
+
+            {/* App Level Edit & Settings Modal */}
+            <EditAppModal
+                isOpen={editAppModalOpen}
+                onClose={() => setEditAppModalOpen(false)}
+                app={localApp}
+                isOwner={is_owner}
+                onUpdated={(updated) => {
+                    setLocalApp(updated);
+                }}
+            />
 
             {/* App Level Collaborators Modal */}
             <CollaboratorsModal
