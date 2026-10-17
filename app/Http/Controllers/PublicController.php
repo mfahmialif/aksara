@@ -9,16 +9,65 @@ use App\Models\SavedSharedLink;
 use App\Models\User;
 use App\Models\UserNoteReminder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class PublicController extends Controller
 {
     /**
+     * Check if the incoming request is from a search engine or social media crawler/bot.
+     */
+    public static function isCrawler(Request $request): bool
+    {
+        $userAgent = strtolower((string) $request->header('User-Agent', ''));
+
+        if (empty($userAgent)) {
+            return false;
+        }
+
+        $crawlers = [
+            'whatsapp',
+            'facebookexternalhit',
+            'facebot',
+            'twitterbot',
+            'telegrambot',
+            'linkedinbot',
+            'slackbot',
+            'discordbot',
+            'googlebot',
+            'bingbot',
+            'applebot',
+            'skypeuripreview',
+            'pinterest',
+            'vkshare',
+            'line/',
+            'embedly',
+            'quora link preview',
+            'yahoo! slurp',
+        ];
+
+        foreach ($crawlers as $crawler) {
+            if (str_contains($userAgent, $crawler)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Helper to enforce member login before viewing any public share links,
-     * while remembering the intended URL to redirect back immediately upon login.
+     * while allowing social media bots to read OpenGraph tags and remembering
+     * intended URL for human visitors.
      */
     private function ensureAuthenticated(Request $request)
     {
+        // Allow crawlers/bots to pass through so WhatsApp, Facebook, Telegram can unfurl meta tags
+        if (self::isCrawler($request)) {
+            return null;
+        }
+
         if (! auth('web')->check()) {
             session()->put('url.intended', $request->fullUrl());
 
@@ -32,21 +81,40 @@ class PublicController extends Controller
     {
         $demoUsers = User::where('is_active', true)->limit(5)->get();
 
+        $seo = [
+            'title' => 'Aksara Notes — Workspace & Catatan Kolaboratif Modern',
+            'description' => 'Aplikasi ruang kerja dan catatan modern bergaya Neo-Brutalism. Catat ide, kelola topik kuliah atau proyek tim, dan bagikan tautan secara instan.',
+            'image' => url('/og-image.png'),
+            'url' => url('/'),
+            'type' => 'website',
+        ];
+        View::share('seo', $seo);
+
         return Inertia::render('Public/Welcome', [
             'demo_users' => $demoUsers,
+            'seo' => $seo,
         ]);
     }
 
     public function showPublicApp($slug_token, Request $request)
     {
-        if ($redirect = $this->ensureAuthenticated($request)) {
-            return $redirect;
-        }
-
         $app = NoteApp::where('public_token', $slug_token)
             ->where('is_public', true)
             ->with(['owner', 'collaborators.user'])
             ->firstOrFail();
+
+        $seo = [
+            'title' => "{$app->name} — Ruang Kerja Aksara",
+            'description' => $app->description ?: "Buka dan jelajahi ruang kerja {$app->name} di Aksara Notes. Kelola topik dan catatan dengan mudah.",
+            'image' => url('/og-image.png'),
+            'url' => url('/s/'.$slug_token),
+            'type' => 'website',
+        ];
+        View::share('seo', $seo);
+
+        if ($redirect = $this->ensureAuthenticated($request)) {
+            return $redirect;
+        }
 
         $groups = $app->groups()->with(['notes' => function ($q) {
             $q->with(['attachments'])
@@ -92,15 +160,12 @@ class PublicController extends Controller
             'is_public_view' => true,
             'is_group_shared_view' => false,
             'is_single_note_view' => false,
+            'seo' => $seo,
         ]);
     }
 
     public function showPublicGroup($slug_token, Request $request)
     {
-        if ($redirect = $this->ensureAuthenticated($request)) {
-            return $redirect;
-        }
-
         $group = NoteGroup::where('public_token', $slug_token)
             ->where('is_public', true)
             ->with(['app.owner', 'notes' => function ($q) {
@@ -112,8 +177,22 @@ class PublicController extends Controller
             ->firstOrFail();
 
         $app = $group->app;
+        $appName = $app?->name ?? 'Aksara';
+        $seo = [
+            'title' => "{$group->name} — {$appName} | Aksara Notes",
+            'description' => "Lihat kumpulan catatan topik '{$group->name}' pada ruang kerja {$appName} di Aksara Notes.",
+            'image' => url('/og-image.png'),
+            'url' => url('/s/'.$slug_token),
+            'type' => 'website',
+        ];
+        View::share('seo', $seo);
+
+        if ($redirect = $this->ensureAuthenticated($request)) {
+            return $redirect;
+        }
+
         $user = auth('web')->user();
-        $isOwner = $user && $app->owner_id === $user->id;
+        $isOwner = $user && $app && $app->owner_id === $user->id;
         $canEdit = $group->canUserEdit($user);
 
         $selectedNoteId = $request->query('note_id');
@@ -143,41 +222,73 @@ class PublicController extends Controller
             'is_public_view' => true,
             'is_group_shared_view' => true,
             'is_single_note_view' => false,
+            'seo' => $seo,
         ]);
     }
 
     public function showPublicNote($slug_token, ?Request $request = null)
     {
         $req = $request ?: request();
-        if ($redirect = $this->ensureAuthenticated($req)) {
-            return $redirect;
-        }
 
         $note = Note::where('public_token', $slug_token)
             ->where('is_public', true)
             ->with(['attachments', 'group.app.owner', 'group.app.collaborators.user'])
             ->firstOrFail();
 
-        $app = $note->group->app;
+        $description = "Catatan '{$note->title}' di Aksara Notes.";
+        if (! empty($note->content_json)) {
+            $decoded = json_decode($note->content_json, true);
+            $html = $decoded['html'] ?? '';
+            $cleanText = trim(strip_tags(html_entity_decode((string) $html, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            if (! empty($cleanText)) {
+                $description = Str::limit(preg_replace('/\s+/', ' ', $cleanText), 180);
+            }
+        }
+
+        $imageUrl = url('/og-image.png');
+        $imageAttachment = $note->attachments->first(function ($att) {
+            return str_starts_with($att->mime_type ?? '', 'image/');
+        });
+        if ($imageAttachment && ! empty($imageAttachment->file_path)) {
+            $imageUrl = url('/storage/'.$imageAttachment->file_path);
+        }
+
+        $seo = [
+            'title' => "{$note->title} — Aksara Notes",
+            'description' => $description,
+            'image' => $imageUrl,
+            'url' => url('/s/'.$slug_token),
+            'type' => 'article',
+        ];
+        View::share('seo', $seo);
+
+        if ($redirect = $this->ensureAuthenticated($req)) {
+            return $redirect;
+        }
+
+        $app = $note->group?->app;
         $user = auth('web')->user();
-        $isOwner = $user && $app->owner_id === $user->id;
+        $isOwner = $user && $app && $app->owner_id === $user->id;
         $canEdit = $note->canUserEdit($user);
         $isSaved = $user ? SavedSharedLink::where('user_id', $user->id)->where('item_type', 'note')->where('item_id', $note->id)->exists() : false;
         $userReminder = $user ? UserNoteReminder::where('user_id', $user->id)->where('note_id', $note->id)->first() : null;
 
         // Isolate group so only this note is exposed
         $group = $note->group;
-        $group->setRelation('notes', collect([$note]));
+        if ($group) {
+            $group->setRelation('notes', collect([$note]));
+        }
 
         return Inertia::render('Public/PublicNote', [
             'note' => $note,
             'app' => $app,
-            'groups' => collect([$group]),
+            'groups' => $group ? collect([$group]) : collect([]),
             'user_reminder' => $userReminder,
             'is_saved' => $isSaved,
             'can_edit' => $canEdit,
             'is_owner' => $isOwner,
             'share_public_token' => $slug_token,
+            'seo' => $seo,
         ]);
     }
 

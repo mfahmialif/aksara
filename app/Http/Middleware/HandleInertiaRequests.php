@@ -72,6 +72,13 @@ class HandleInertiaRequests extends Middleware
                     ->get(),
             ] : null,
             'system_settings' => SystemSetting::getAll(),
+            'seo' => [
+                'title' => config('app.name', 'Aksara Notes').' — Workspace & Catatan Kolaboratif',
+                'description' => 'Aplikasi ruang kerja dan catatan modern bergaya Neo-Brutalism. Catat ide, kelola topik kuliah atau proyek tim, dan bagikan tautan secara instan.',
+                'image' => url('/og-image.png'),
+                'url' => $request->fullUrl(),
+                'type' => 'website',
+            ],
         ];
     }
 }

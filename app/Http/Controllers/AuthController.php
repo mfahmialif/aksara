@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\View;
 use Inertia\Inertia;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -20,7 +21,18 @@ class AuthController extends Controller
             return redirect()->intended(route('apps.index'));
         }
 
-        return Inertia::render('Public/Login');
+        $seo = [
+            'title' => 'Masuk ke Aksara Notes',
+            'description' => 'Masuk ke akun Aksara Notes Anda untuk mengakses dan mengelola ruang kerja serta catatan kolaboratif.',
+            'image' => url('/og-image.png'),
+            'url' => route('login'),
+            'type' => 'website',
+        ];
+        View::share('seo', $seo);
+
+        return Inertia::render('Public/Login', [
+            'seo' => $seo,
+        ]);
     }
 
     /**
