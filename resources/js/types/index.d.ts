@@ -42,6 +42,7 @@ export interface NoteApp {
     color_theme: string;
     description?: string;
     is_public: boolean;
+    is_duplicable?: boolean;
     public_token: string;
     public_permission?: 'read' | 'edit';
     topic_label?: string;

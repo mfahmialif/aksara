@@ -29,6 +29,7 @@ class WorkspaceDuplicateAndSyncTest extends TestCase
             'name' => 'MMPI ONLINE',
             'color_theme' => 'yellow',
             'is_public' => true,
+            'is_duplicable' => true,
             'public_permission' => 'edit',
         ]);
 
@@ -88,6 +89,7 @@ class WorkspaceDuplicateAndSyncTest extends TestCase
             'name' => 'Master App',
             'color_theme' => 'yellow',
             'is_public' => true,
+            'is_duplicable' => true,
         ]);
 
         // User 1 duplicates
@@ -133,6 +135,7 @@ class WorkspaceDuplicateAndSyncTest extends TestCase
             'name' => 'Public Master',
             'color_theme' => 'yellow',
             'is_public' => true,
+            'is_duplicable' => true,
         ]);
 
         // User A duplicates twice
@@ -173,6 +176,7 @@ class WorkspaceDuplicateAndSyncTest extends TestCase
             'name' => 'Master App',
             'color_theme' => 'yellow',
             'is_public' => true,
+            'is_duplicable' => true,
         ]);
 
         $group = NoteGroup::create([
@@ -272,6 +276,7 @@ class WorkspaceDuplicateAndSyncTest extends TestCase
             'name' => 'Kuliah MSDM',
             'color_theme' => 'yellow',
             'is_public' => true,
+            'is_duplicable' => true,
         ]);
 
         $group = NoteGroup::create([
@@ -333,5 +338,79 @@ class WorkspaceDuplicateAndSyncTest extends TestCase
         $response->assertSessionHas('success');
 
         $this->assertDatabaseMissing('note_apps', ['id' => $app->id]);
+    }
+
+    public function test_workspace_creation_defaults_to_duplication_disabled(): void
+    {
+        $owner = User::factory()->create();
+
+        $response = $this->actingAs($owner, 'web')->post('/app', [
+            'name' => 'Ruang Kerja Default Duplikasi',
+            'color_theme' => 'mint',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+
+        $app = NoteApp::where('name', 'Ruang Kerja Default Duplikasi')->first();
+        $this->assertNotNull($app);
+        $this->assertFalse($app->is_duplicable);
+    }
+
+    public function test_user_cannot_duplicate_workspace_if_is_duplicable_is_false(): void
+    {
+        $owner = User::factory()->create();
+        $user = User::factory()->create();
+
+        $app = NoteApp::create([
+            'owner_id' => $owner->id,
+            'name' => 'Master App Rahasia',
+            'color_theme' => 'yellow',
+            'is_public' => true,
+            'is_duplicable' => false,
+        ]);
+
+        $response = $this->actingAs($user, 'web')->postJson("/app/{$app->id}/duplicate", [
+            'name' => 'Coba Duplikat Ilegal',
+        ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_owner_can_toggle_is_duplicable_in_settings_and_collaborator_cannot(): void
+    {
+        $owner = User::factory()->create();
+        $collaborator = User::factory()->create();
+
+        $app = NoteApp::create([
+            'owner_id' => $owner->id,
+            'name' => 'Workspace Settings Test',
+            'color_theme' => 'yellow',
+            'is_duplicable' => false,
+        ]);
+
+        $app->collaborators()->create([
+            'user_id' => $collaborator->id,
+            'invited_email' => $collaborator->email,
+            'permission' => 'edit',
+        ]);
+
+        // 1. Owner updates is_duplicable to true
+        $ownerRes = $this->actingAs($owner, 'web')->putJson("/app/{$app->id}", [
+            'is_duplicable' => true,
+        ]);
+        $ownerRes->assertOk();
+
+        $app->refresh();
+        $this->assertTrue($app->is_duplicable);
+
+        // 2. Collaborator tries to update is_duplicable to false
+        $collabRes = $this->actingAs($collaborator, 'web')->putJson("/app/{$app->id}", [
+            'is_duplicable' => false,
+        ]);
+        $collabRes->assertOk();
+
+        // Must still remain true because only owner can change is_duplicable
+        $app->refresh();
+        $this->assertTrue($app->is_duplicable);
     }
 }

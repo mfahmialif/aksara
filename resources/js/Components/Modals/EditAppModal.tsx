@@ -40,6 +40,7 @@ export default function EditAppModal({
     const [colorTheme, setColorTheme] = useState(app.color_theme || 'yellow');
     const [description, setDescription] = useState(app.description || '');
     const [topicLabel, setTopicLabel] = useState(app.topic_label || 'Topik');
+    const [isDuplicable, setIsDuplicable] = useState(Boolean(app.is_duplicable));
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [isDeletingApp, setIsDeletingApp] = useState(false);
     const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -61,6 +62,7 @@ export default function EditAppModal({
             setColorTheme(app.color_theme || 'yellow');
             setDescription(app.description || '');
             setTopicLabel(app.topic_label || 'Topik');
+            setIsDuplicable(Boolean(app.is_duplicable));
             setSettingsError(null);
             setSettingsSuccess(null);
             setTransferError(null);
@@ -128,12 +130,16 @@ export default function EditAppModal({
         setSettingsError(null);
         setSettingsSuccess(null);
 
-        const payload = {
+        const payload: Record<string, any> = {
             name: name.trim(),
             color_theme: colorTheme,
             description: description.trim() || null,
             topic_label: topicLabel.trim() || 'Topik',
         };
+
+        if (isOwner) {
+            payload.is_duplicable = isDuplicable;
+        }
 
         try {
             const csrfToken = getCsrfToken();
@@ -387,6 +393,36 @@ export default function EditAppModal({
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                         />
+
+                        {/* Pengaturan Izin Duplikasi */}
+                        {isOwner ? (
+                            <div className="p-3 bg-neutral-50 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-start gap-3">
+                                <input
+                                    type="checkbox"
+                                    id="edit_is_duplicable"
+                                    checked={isDuplicable}
+                                    onChange={(e) => setIsDuplicable(e.target.checked)}
+                                    className="w-4 h-4 mt-0.5 border-2 border-black accent-[#FFDC58] cursor-pointer"
+                                />
+                                <div className="space-y-0.5">
+                                    <label htmlFor="edit_is_duplicable" className="text-xs font-bold text-black cursor-pointer font-heading uppercase">
+                                        Izinkan Duplikasi Ruang Kerja
+                                    </label>
+                                    <p className="text-[11px] text-neutral-600">
+                                        Jika diaktifkan, tombol duplikat akan muncul sehingga ruang kerja ini dapat dikloning beserta seluruh {topicLabel.toLowerCase()} dan catatannya.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-3 bg-neutral-100 border-2 border-black text-xs text-neutral-600 flex items-center justify-between">
+                                <span className="font-bold">Status Duplikasi:</span>
+                                <span className={`px-2 py-0.5 border border-black text-[10px] font-black uppercase ${
+                                    app.is_duplicable ? 'bg-[#A6E3A1] text-emerald-950' : 'bg-neutral-200 text-neutral-700'
+                                }`}>
+                                    {app.is_duplicable ? 'Aktif' : 'Nonaktif'}
+                                </span>
+                            </div>
+                        )}
 
                         {/* Danger Zone: Hapus Ruang Kerja */}
                         {isOwner && (

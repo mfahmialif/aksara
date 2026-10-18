@@ -260,7 +260,7 @@ export default function WorkspaceNavbar({
                             </button>
                         )}
 
-                        {!isGroupSharedView && onOpenDuplicate && (
+                        {!isGroupSharedView && onOpenDuplicate && Boolean(app.is_duplicable) && (
                             <button
                                 type="button"
                                 onClick={onOpenDuplicate}
@@ -438,7 +438,7 @@ export default function WorkspaceNavbar({
                                     )}
 
                                     {/* Duplikat */}
-                                    {!isGroupSharedView && onOpenDuplicate && (
+                                    {!isGroupSharedView && onOpenDuplicate && Boolean(app.is_duplicable) && (
                                         <button
                                             type="button"
                                             onClick={() => {

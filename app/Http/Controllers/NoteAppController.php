@@ -199,6 +199,7 @@ class NoteAppController extends Controller
             'icon' => 'nullable|string|max:50',
             'description' => 'nullable|string|max:300',
             'is_public' => 'boolean',
+            'is_duplicable' => 'boolean',
             'topic_label' => 'nullable|string|max:50',
         ]);
 
@@ -209,6 +210,7 @@ class NoteAppController extends Controller
             'icon' => $validated['icon'] ?? 'Notebook',
             'description' => $validated['description'] ?? null,
             'is_public' => $validated['is_public'] ?? false,
+            'is_duplicable' => $validated['is_duplicable'] ?? false,
             'public_token' => 'app-'.Str::random(24),
             'topic_label' => ! empty($validated['topic_label']) ? trim($validated['topic_label']) : 'Topik',
         ]);
@@ -305,9 +307,15 @@ class NoteAppController extends Controller
             'icon' => 'nullable|string|max:50',
             'description' => 'nullable|string|max:300',
             'is_public' => 'sometimes|boolean',
+            'is_duplicable' => 'sometimes|boolean',
             'public_token' => 'sometimes|nullable|string|max:64',
             'topic_label' => 'sometimes|nullable|string|max:50',
         ]);
+
+        // Only owner can change is_duplicable
+        if (array_key_exists('is_duplicable', $validated) && $app->owner_id !== $user->id) {
+            unset($validated['is_duplicable']);
+        }
 
         if (array_key_exists('is_public', $validated) && $validated['is_public'] && empty($app->public_token)) {
             $validated['public_token'] = 'app-'.Str::lower(Str::random(12));
@@ -887,6 +895,10 @@ class NoteAppController extends Controller
             abort(403, 'Anda tidak memiliki izin untuk menduplikat ruang kerja ini.');
         }
 
+        if (! $sourceApp->is_duplicable) {
+            abort(403, 'Pemilik telah menonaktifkan fitur duplikasi untuk ruang kerja ini.');
+        }
+
         $validated = $request->validate([
             'name' => 'nullable|string|max:100',
         ]);
@@ -905,6 +917,7 @@ class NoteAppController extends Controller
                 'description' => $sourceApp->description,
                 'topic_label' => $sourceApp->topic_label,
                 'is_public' => false,
+                'is_duplicable' => false,
             ]);
 
             foreach ($sourceApp->groups as $group) {

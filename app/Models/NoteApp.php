@@ -24,6 +24,7 @@ class NoteApp extends Model
         'clone_count',
         'description',
         'is_public',
+        'is_duplicable',
         'public_token',
         'public_permission',
         'topic_label',
@@ -31,6 +32,7 @@ class NoteApp extends Model
 
     protected $casts = [
         'is_public' => 'boolean',
+        'is_duplicable' => 'boolean',
         'clone_count' => 'integer',
     ];
 

@@ -112,7 +112,7 @@ export default function AppCard({
                                 <Users className="w-3.5 h-3.5 text-black" />
                             </span>
                         )}
-                        {onDuplicate && (
+                        {onDuplicate && Boolean(app.is_duplicable) && (
                             <button
                                 type="button"
                                 onClick={(e) => {

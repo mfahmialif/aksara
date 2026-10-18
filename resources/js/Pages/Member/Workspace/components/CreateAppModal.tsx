@@ -26,6 +26,7 @@ export default function CreateAppModal({ isOpen, onClose }: CreateAppModalProps)
     const [description, setDescription] = useState('');
     const [topicLabel, setTopicLabel] = useState('Topik');
     const [isPublic, setIsPublic] = useState(false);
+    const [isDuplicable, setIsDuplicable] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -44,12 +45,15 @@ export default function CreateAppModal({ isOpen, onClose }: CreateAppModalProps)
                 description: description.trim() || null,
                 topic_label: topicLabel.trim() || 'Topik',
                 is_public: isPublic,
+                is_duplicable: isDuplicable,
             },
             {
                 onSuccess: () => {
                     setName('');
                     setDescription('');
                     setTopicLabel('Topik');
+                    setIsPublic(false);
+                    setIsDuplicable(false);
                     onClose();
                     setSubmitting(false);
                 },
@@ -177,10 +181,23 @@ export default function CreateAppModal({ isOpen, onClose }: CreateAppModalProps)
                         id="is_public_workspace"
                         checked={isPublic}
                         onChange={(e) => setIsPublic(e.target.checked)}
-                        className="w-4 h-4 border-2 border-black accent-[#FFDC58]"
+                        className="w-4 h-4 border-2 border-black accent-[#FFDC58] cursor-pointer"
                     />
                     <label htmlFor="is_public_workspace" className="text-xs font-bold text-neutral-800 cursor-pointer">
                         Jadikan Ruang Kerja ini Publik (dapat dibaca siapa saja via tautan link)
+                    </label>
+                </div>
+
+                <div className="p-3 bg-neutral-50 border-2 border-black flex items-center gap-3">
+                    <input
+                        type="checkbox"
+                        id="is_duplicable_workspace"
+                        checked={isDuplicable}
+                        onChange={(e) => setIsDuplicable(e.target.checked)}
+                        className="w-4 h-4 border-2 border-black accent-[#FFDC58] cursor-pointer"
+                    />
+                    <label htmlFor="is_duplicable_workspace" className="text-xs font-bold text-neutral-800 cursor-pointer">
+                        Izinkan Ruang Kerja ini diduplikat (kloning catatan & topik)
                     </label>
                 </div>
 
