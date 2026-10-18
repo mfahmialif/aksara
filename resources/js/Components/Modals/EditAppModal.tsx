@@ -394,8 +394,8 @@ export default function EditAppModal({
                             onChange={(e) => setDescription(e.target.value)}
                         />
 
-                        {/* Pengaturan Izin Duplikasi */}
-                        {isOwner ? (
+                        {/* Pengaturan Izin Duplikasi (Hanya Pemilik) */}
+                        {isOwner && (
                             <div className="p-3 bg-neutral-50 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-start gap-3">
                                 <input
                                     type="checkbox"
@@ -412,15 +412,6 @@ export default function EditAppModal({
                                         Jika diaktifkan, tombol duplikat akan muncul sehingga ruang kerja ini dapat dikloning beserta seluruh {topicLabel.toLowerCase()} dan catatannya.
                                     </p>
                                 </div>
-                            </div>
-                        ) : (
-                            <div className="p-3 bg-neutral-100 border-2 border-black text-xs text-neutral-600 flex items-center justify-between">
-                                <span className="font-bold">Status Duplikasi:</span>
-                                <span className={`px-2 py-0.5 border border-black text-[10px] font-black uppercase ${
-                                    app.is_duplicable ? 'bg-[#A6E3A1] text-emerald-950' : 'bg-neutral-200 text-neutral-700'
-                                }`}>
-                                    {app.is_duplicable ? 'Aktif' : 'Nonaktif'}
-                                </span>
                             </div>
                         )}
 

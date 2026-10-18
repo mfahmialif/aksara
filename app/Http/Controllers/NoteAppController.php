@@ -118,6 +118,14 @@ class NoteAppController extends Controller
             ->paginate(9)
             ->withQueryString();
 
+        $apps->through(function ($app) use ($user) {
+            if ($app->owner_id !== $user->id) {
+                $app->makeHidden(['clone_count', 'active_clones_count']);
+            }
+
+            return $app;
+        });
+
         // Standalone shared folders/groups (collaborator on folder level ONLY)
         $standaloneSharedGroups = collect();
         if ($type === 'all' || $type === 'shared') {
@@ -280,6 +288,10 @@ class NoteAppController extends Controller
 
         $app->loadCount(['clones as active_clones_count']);
         $app->load(['clonedFrom:id,name,owner_id']);
+
+        if (! $isOwner) {
+            $app->makeHidden(['clone_count', 'active_clones_count']);
+        }
 
         return Inertia::render('Member/NoteEditor', [
             'app' => $app,

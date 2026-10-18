@@ -151,6 +151,10 @@ class PublicController extends Controller
         $app->loadCount(['clones as active_clones_count']);
         $app->load(['clonedFrom:id,name,owner_id']);
 
+        if (! $isOwner) {
+            $app->makeHidden(['clone_count', 'active_clones_count']);
+        }
+
         return Inertia::render('Member/NoteEditor', [
             'app' => $app,
             'groups' => $groups,

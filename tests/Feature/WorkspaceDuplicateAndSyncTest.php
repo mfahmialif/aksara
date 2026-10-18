@@ -413,4 +413,36 @@ class WorkspaceDuplicateAndSyncTest extends TestCase
         $app->refresh();
         $this->assertTrue($app->is_duplicable);
     }
+
+    public function test_non_owner_does_not_see_clone_counts_and_cannot_access_clones(): void
+    {
+        $owner = User::factory()->create();
+        $collaborator = User::factory()->create();
+
+        $app = NoteApp::create([
+            'owner_id' => $owner->id,
+            'name' => 'Secret Cloned App',
+            'color_theme' => 'yellow',
+            'is_duplicable' => true,
+            'clone_count' => 10,
+        ]);
+
+        $app->collaborators()->create([
+            'user_id' => $collaborator->id,
+            'invited_email' => $collaborator->email,
+            'permission' => 'edit',
+        ]);
+
+        // Collaborator cannot access clones list API
+        $this->actingAs($collaborator, 'web')
+            ->getJson("/app/{$app->id}/clones")
+            ->assertStatus(403);
+
+        // When collaborator views workspace show page via Inertia
+        $response = $this->actingAs($collaborator, 'web')->get("/app/{$app->id}");
+        $response->assertOk();
+        $pageApp = $response->viewData('page')['props']['app'];
+        $this->assertArrayNotHasKey('clone_count', $pageApp);
+        $this->assertArrayNotHasKey('active_clones_count', $pageApp);
+    }
 }

@@ -215,7 +215,7 @@ export default function AppCard({
                                 <span>Hasil Duplikat</span>
                             </span>
                         )}
-                        {isOwner && (app.clone_count || 0) > 0 && (
+                        {isOwner && Boolean(app.is_duplicable) && (app.clone_count || 0) > 0 && (
                             <button
                                 type="button"
                                 onClick={(e) => {

@@ -284,7 +284,7 @@ export default function WorkspaceNavbar({
                             </button>
                         )}
 
-                        {!isGroupSharedView && isOwner && (app.clone_count || 0) > 0 && onOpenClones && (
+                        {!isGroupSharedView && isOwner && Boolean(app.is_duplicable) && (app.clone_count || 0) > 0 && onOpenClones && (
                             <button
                                 type="button"
                                 onClick={onOpenClones}
@@ -486,7 +486,7 @@ export default function WorkspaceNavbar({
                                     )}
 
                                     {/* Daftar Duplikat */}
-                                    {!isGroupSharedView && isOwner && (app.clone_count || 0) > 0 && onOpenClones && (
+                                    {!isGroupSharedView && isOwner && Boolean(app.is_duplicable) && (app.clone_count || 0) > 0 && onOpenClones && (
                                         <button
                                             type="button"
                                             onClick={() => {
