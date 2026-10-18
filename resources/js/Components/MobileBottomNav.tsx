@@ -12,7 +12,7 @@ import { lockBodyScroll, unlockBodyScroll } from '@/utils/modalScrollLock';
 export default function MobileBottomNav() {
     const { auth, notifications_summary } = usePage<PageProps>().props;
     const url = usePage().url;
-    const user = auth.user;
+    const user = auth?.user;
     const [accountSheetOpen, setAccountSheetOpen] = useState(false);
 
     useEffect(() => {
@@ -26,8 +26,10 @@ export default function MobileBottomNav() {
         };
     }, [accountSheetOpen]);
 
-    // Only display for logged-in members, NOT on the landing page or public share pages
-    if (!user || url === '/' || url === '' || url.startsWith('/share/') || url.startsWith('/s/')) {
+    const cleanPath = url.split('?')[0].split('#')[0];
+
+    // Only display for logged-in members, NOT on the landing page
+    if (!user || cleanPath === '/' || cleanPath === '') {
         return null;
     }
 
