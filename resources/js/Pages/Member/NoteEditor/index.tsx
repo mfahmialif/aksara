@@ -746,7 +746,6 @@ export default function NoteEditor({
                     }}
                     onDeleted={() => {
                         setEditAppModalOpen(false);
-                        router.visit('/app');
                     }}
                 />
             )}

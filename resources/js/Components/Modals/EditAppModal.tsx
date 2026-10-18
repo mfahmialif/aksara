@@ -97,7 +97,7 @@ export default function EditAppModal({
         }
     };
 
-    const handleDeleteApp = async () => {
+    const handleDeleteApp = () => {
         if (!isOwner) return;
 
         const confirmMsg = `Hapus ruang kerja "${app.name}" secara permanen?\n\nSemua ${topicLabel.toLowerCase()} dan catatan di dalamnya akan terhapus dan tidak dapat dikembalikan!`;
@@ -106,48 +106,18 @@ export default function EditAppModal({
         setIsDeletingApp(true);
         setSettingsError(null);
 
-        try {
-            const csrfToken = getCsrfToken();
-            const res = await fetch(`/app/${app.id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            });
-
-            const data = await res.json();
-            if (res.ok && data.success) {
+        router.delete(`/app/${app.id}`, {
+            onSuccess: () => {
                 onClose();
                 if (onDeleted) {
                     onDeleted(app.id);
-                } else if (typeof window !== 'undefined' && window.location.pathname.startsWith(`/app/${app.id}`)) {
-                    router.visit('/app');
-                } else {
-                    router.reload();
                 }
-            } else {
-                setSettingsError(data.message || 'Gagal menghapus ruang kerja.');
+            },
+            onError: () => {
                 setIsDeletingApp(false);
-            }
-        } catch {
-            router.delete(`/app/${app.id}`, {
-                onSuccess: () => {
-                    onClose();
-                    if (onDeleted) {
-                        onDeleted(app.id);
-                    } else if (typeof window !== 'undefined' && window.location.pathname.startsWith(`/app/${app.id}`)) {
-                        router.visit('/app');
-                    }
-                },
-                onError: () => {
-                    setSettingsError('Terjadi kesalahan saat menghapus ruang kerja.');
-                    setIsDeletingApp(false);
-                },
-            });
-        }
+                setSettingsError('Terjadi kesalahan saat menghapus ruang kerja.');
+            },
+        });
     };
 
     const handleSaveSettings = async (e: React.FormEvent) => {

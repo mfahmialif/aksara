@@ -261,4 +261,77 @@ class WorkspaceDuplicateAndSyncTest extends TestCase
         $this->assertContains('Catatan 1 (Salinan Sync)', $titles);
         $this->assertContains('Catatan 2', $titles);
     }
+
+    public function test_notes_with_same_title_in_same_group_do_not_produce_false_modified_diff_after_duplication(): void
+    {
+        $owner = User::factory()->create();
+        $user = User::factory()->create();
+
+        $masterApp = NoteApp::create([
+            'owner_id' => $owner->id,
+            'name' => 'Kuliah MSDM',
+            'color_theme' => 'yellow',
+            'is_public' => true,
+        ]);
+
+        $group = NoteGroup::create([
+            'note_app_id' => $masterApp->id,
+            'name' => 'Manajemen Sumber Daya Manusia',
+            'color' => '#FFDC58',
+        ]);
+
+        $note1 = Note::create([
+            'note_group_id' => $group->id,
+            'title' => 'TUGAS',
+            'content_json' => json_encode(['html' => '<p>Membuat jurnal</p>']),
+            'category' => 'regular',
+        ]);
+
+        $note2 = Note::create([
+            'note_group_id' => $group->id,
+            'title' => 'TUGAS',
+            'content_json' => json_encode(['html' => '<p>Bikin rangkuman 1 bab jadi 4 halaman di Mapel MSDM</p>']),
+            'category' => 'regular',
+        ]);
+
+        // Duplicate
+        $dupRes = $this->actingAs($user, 'web')->postJson("/app/{$masterApp->id}/duplicate", [
+            'name' => 'Kuliah MSDM - Duplikat',
+        ]);
+        $dupRes->assertOk();
+        $dupAppId = $dupRes->json('app.id');
+
+        // Check diff immediately
+        $diffRes = $this->actingAs($user, 'web')->postJson("/app/{$dupAppId}/sync-diff", [
+            'source_app_id' => $masterApp->id,
+            'target_app_id' => $dupAppId,
+        ]);
+
+        $diffRes->assertOk();
+        $diffItems = $diffRes->json('diff');
+
+        $this->assertCount(2, $diffItems);
+        foreach ($diffItems as $item) {
+            $this->assertEquals('identical', $item['status'], "Catatan '{$item['source_title']}' seharusnya berstatus identical, tapi didapat '{$item['status']}'");
+        }
+    }
+
+    public function test_deleting_workspace_redirects_to_apps_index_with_status_303_and_flash_message(): void
+    {
+        $owner = User::factory()->create();
+
+        $app = NoteApp::create([
+            'owner_id' => $owner->id,
+            'name' => 'Ruang Kerja Percobaan',
+            'color_theme' => 'yellow',
+        ]);
+
+        $response = $this->actingAs($owner, 'web')->delete("/app/{$app->id}");
+
+        $response->assertStatus(303);
+        $response->assertRedirect(route('apps.index'));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('note_apps', ['id' => $app->id]);
+    }
 }

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
-import { NoteApp, SyncTargetApp, SyncDiffItem } from '@/types';
+import { NoteApp, SyncDiffItem } from '@/types';
 import NeoModal from '../UI/NeoModal';
 import NeoButton from '../UI/NeoButton';
 import {
-    RefreshCw, ArrowRight, ArrowLeftRight, Check, AlertCircle,
-    FileText, Plus, Copy, RotateCcw, Loader2, Sparkles, Folder
+    RefreshCw, ArrowRight, Check, AlertCircle,
+    Loader2, Sparkles, Folder, ShieldCheck
 } from 'lucide-react';
 import { getCsrfToken } from '@/utils/csrf';
 
@@ -24,106 +24,80 @@ export default function SyncWorkspaceModal({
 }: SyncWorkspaceModalProps) {
     if (!currentApp) return null;
 
-    // Step: 'select_target' | 'review_diff'
-    const [step, setStep] = useState<'select_target' | 'review_diff'>('select_target');
-    const [isLoadingTargets, setIsLoadingTargets] = useState(false);
-    const [targets, setTargets] = useState<SyncTargetApp[]>([]);
-    const [selectedTargetId, setSelectedTargetId] = useState<string>('');
-
-    // Direction: 'pull' (Target -> Current) or 'push' (Current -> Target)
-    const [syncDirection, setSyncDirection] = useState<'pull' | 'push'>('pull');
-
     // Diff Data
     const [isLoadingDiff, setIsLoadingDiff] = useState(false);
     const [diffItems, setDiffItems] = useState<SyncDiffItem[]>([]);
     const [actions, setActions] = useState<Record<string, 'add' | 'overwrite' | 'create_new' | 'skip'>>({});
     const [sourceAppName, setSourceAppName] = useState('');
     const [targetAppName, setTargetAppName] = useState('');
+    const [activeFilter, setActiveFilter] = useState<'all' | 'new' | 'modified' | 'identical' | 'target_only'>('all');
 
     // Submitting Merge
     const [isApplying, setIsApplying] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-    // Fetch targets on modal open
+    // Fetch diff directly on modal open pulling strictly from original master
     useEffect(() => {
         if (!isOpen || !currentApp) return;
 
-        setStep('select_target');
         setStatusMessage(null);
-        setIsLoadingTargets(true);
+        setActiveFilter('all');
 
-        fetch(`/app/${currentApp.id}/sync-targets`, {
+        if (!currentApp.cloned_from_id) {
+            setStatusMessage({
+                type: 'error',
+                text: 'Ruang kerja ini adalah ruang kerja asli (master). Sinkronisasi hanya dapat dilakukan pada ruang kerja hasil duplikat.',
+            });
+            return;
+        }
+
+        setIsLoadingDiff(true);
+
+        const csrfToken = getCsrfToken();
+        fetch(`/app/${currentApp.id}/sync-diff`, {
+            method: 'POST',
             headers: {
+                'Content-Type': 'application/json',
                 Accept: 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
                 'X-Requested-With': 'XMLHttpRequest',
             },
+            body: JSON.stringify({
+                source_app_id: currentApp.cloned_from_id,
+                target_app_id: currentApp.id,
+            }),
         })
             .then((res) => res.json())
             .then((data) => {
-                if (data.success && Array.isArray(data.targets)) {
-                    setTargets(data.targets);
-                    if (data.targets.length > 0) {
-                        setSelectedTargetId(data.targets[0].id);
-                    }
+                if (data.success) {
+                    setDiffItems(data.diff || []);
+                    setSourceAppName(data.source_app?.name || 'Ruang Kerja Asal');
+                    setTargetAppName(data.target_app?.name || currentApp.name);
+
+                    // Initialize action mappings with default actions
+                    const initialActions: Record<string, 'add' | 'overwrite' | 'create_new' | 'skip'> = {};
+                    (data.diff || []).forEach((item: SyncDiffItem, idx: number) => {
+                        const key = item.source_note_id || item.target_note_id || `idx_${idx}`;
+                        initialActions[key] = item.default_action || 'skip';
+                    });
+                    setActions(initialActions);
+                } else {
+                    setStatusMessage({
+                        type: 'error',
+                        text: data.message || 'Gagal membandingkan perubahan dengan ruang kerja asal.',
+                    });
                 }
             })
             .catch(() => {
-                setStatusMessage({ type: 'error', text: 'Gagal memuat daftar ruang kerja pasangan.' });
+                setStatusMessage({
+                    type: 'error',
+                    text: 'Terjadi kesalahan jaringan saat membandingkan dengan ruang kerja asal.',
+                });
             })
             .finally(() => {
-                setIsLoadingTargets(false);
+                setIsLoadingDiff(false);
             });
-    }, [isOpen, currentApp?.id]);
-
-    // Handle comparing diff
-    const handleCompareDiff = async () => {
-        if (!selectedTargetId) return;
-
-        setIsLoadingDiff(true);
-        setStatusMessage(null);
-
-        const sourceId = syncDirection === 'pull' ? selectedTargetId : currentApp.id;
-        const targetId = syncDirection === 'pull' ? currentApp.id : selectedTargetId;
-
-        try {
-            const csrfToken = getCsrfToken();
-            const res = await fetch(`/app/${currentApp.id}/sync-diff`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({
-                    source_app_id: sourceId,
-                    target_app_id: targetId,
-                }),
-            });
-
-            const data = await res.json();
-            if (res.ok && data.success) {
-                setDiffItems(data.diff || []);
-                setSourceAppName(data.source_app?.name || 'Sumber');
-                setTargetAppName(data.target_app?.name || 'Tujuan');
-
-                // Initialize action mappings with default actions
-                const initialActions: Record<string, 'add' | 'overwrite' | 'create_new' | 'skip'> = {};
-                (data.diff || []).forEach((item: SyncDiffItem, idx: number) => {
-                    const key = item.source_note_id || item.target_note_id || `idx_${idx}`;
-                    initialActions[key] = item.default_action || 'skip';
-                });
-                setActions(initialActions);
-                setStep('review_diff');
-            } else {
-                setStatusMessage({ type: 'error', text: data.message || 'Gagal membandingkan perubahan.' });
-            }
-        } catch {
-            setStatusMessage({ type: 'error', text: 'Terjadi kesalahan jaringan saat membandingkan.' });
-        } finally {
-            setIsLoadingDiff(false);
-        }
-    };
+    }, [isOpen, currentApp?.id, currentApp?.cloned_from_id]);
 
     // Bulk action helpers
     const handleSetAllActions = (action: 'add' | 'overwrite' | 'create_new' | 'skip') => {
@@ -143,11 +117,10 @@ export default function SyncWorkspaceModal({
 
     // Handle applying sync merge
     const handleApplySync = async () => {
+        if (!currentApp.cloned_from_id) return;
+
         setIsApplying(true);
         setStatusMessage(null);
-
-        const sourceId = syncDirection === 'pull' ? selectedTargetId : currentApp.id;
-        const targetId = syncDirection === 'pull' ? currentApp.id : selectedTargetId;
 
         const actionPayload = diffItems.map((item, idx) => {
             const key = item.source_note_id || item.target_note_id || `idx_${idx}`;
@@ -164,13 +137,13 @@ export default function SyncWorkspaceModal({
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
+                    Accept: 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify({
-                    source_app_id: sourceId,
-                    target_app_id: targetId,
+                    source_app_id: currentApp.cloned_from_id,
+                    target_app_id: currentApp.id,
                     actions: actionPayload,
                 }),
             });
@@ -202,13 +175,18 @@ export default function SyncWorkspaceModal({
     const identicalCount = diffItems.filter((i) => i.status === 'identical').length;
     const targetOnlyCount = diffItems.filter((i) => i.status === 'target_only').length;
 
+    const filteredItems = diffItems.filter((item) => {
+        if (activeFilter === 'all') return true;
+        return item.status === activeFilter;
+    });
+
     const activeChangesCount = Object.values(actions).filter((a) => a !== 'skip').length;
 
     return (
         <NeoModal
             isOpen={isOpen}
             onClose={onClose}
-            title="Sinkronisasi Ruang Kerja & Catatan"
+            title="Tarik Sinkronisasi dari Asal"
             maxWidth="xl"
         >
             <div className="space-y-4">
@@ -227,214 +205,136 @@ export default function SyncWorkspaceModal({
                     </div>
                 )}
 
-                {/* STEP 1: SELECT TARGET & DIRECTION */}
-                {step === 'select_target' && (
-                    <div className="space-y-4">
-                        <div className="p-3 bg-[#FFFDF8] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-xs text-neutral-700">
-                            Sinkronisasi terisolasi aman khusus untuk akun Anda. Anda bisa membandingkan catatan, menimpa yang sudah berubah, atau menambahkan catatan baru dari/ke duplikat.
-                        </div>
-
-                        {isLoadingTargets ? (
-                            <div className="p-8 text-center space-y-2 border-2 border-black bg-white">
-                                <Loader2 className="w-6 h-6 animate-spin mx-auto text-black" />
-                                <p className="text-xs font-bold text-neutral-600">Memeriksa pasangan ruang kerja...</p>
-                            </div>
-                        ) : targets.length === 0 ? (
-                            <div className="p-6 text-center space-y-3 border-2 border-dashed border-black bg-[#FFFDF8]">
-                                <RefreshCw className="w-8 h-8 text-neutral-400 mx-auto" />
-                                <p className="text-xs font-bold text-neutral-700">
-                                    Belum ada ruang kerja pasangan untuk disinkronkan.
-                                </p>
-                                <p className="text-[11px] text-neutral-500">
-                                    Duplikat ruang kerja ini terlebih dahulu atau gunakan ruang kerja hasil duplikat untuk memulai sinkronisasi.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <label className="block text-xs font-heading font-black uppercase text-black">
-                                    Pilih Ruang Kerja Pasangan:
-                                </label>
-                                <div className="space-y-2">
-                                    {targets.map((tgt) => (
-                                        <label
-                                            key={tgt.id}
-                                            className={`p-3 border-2 border-black flex items-center justify-between gap-3 cursor-pointer transition-all ${
-                                                selectedTargetId === tgt.id
-                                                    ? 'bg-[#FFDC58] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
-                                                    : 'bg-white hover:bg-neutral-50'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-2.5 min-w-0">
-                                                <input
-                                                    type="radio"
-                                                    name="syncTarget"
-                                                    value={tgt.id}
-                                                    checked={selectedTargetId === tgt.id}
-                                                    onChange={() => setSelectedTargetId(tgt.id)}
-                                                    className="w-4 h-4 accent-black cursor-pointer"
-                                                />
-                                                <div className="min-w-0">
-                                                    <p className="font-heading font-black text-xs uppercase text-black truncate">
-                                                        {tgt.name}
-                                                    </p>
-                                                    <span className={`text-[10px] font-bold px-1.5 py-0.2 border border-black uppercase ${
-                                                        tgt.is_master ? 'bg-indigo-100 text-indigo-900' : 'bg-white text-black'
-                                                    }`}>
-                                                        {tgt.is_master ? 'Ruang Kerja Induk (Master)' : 'Hasil Duplikat'}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <span className="text-[10px] font-bold text-neutral-600 shrink-0">
-                                                Diperbarui: {tgt.updated_at}
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-
-                                {/* Sync Direction Picker */}
-                                <div className="pt-2">
-                                    <label className="block text-xs font-heading font-black uppercase text-black mb-1.5">
-                                        Arah Alur Sinkronisasi:
-                                    </label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSyncDirection('pull')}
-                                            className={`p-2.5 border-2 border-black text-left cursor-pointer transition-all ${
-                                                syncDirection === 'pull'
-                                                    ? 'bg-[#A6E3A1] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-bold'
-                                                    : 'bg-white hover:bg-neutral-50'
-                                            }`}
-                                        >
-                                            <p className="text-xs font-heading font-black uppercase text-black flex items-center gap-1.5">
-                                                <ArrowLeftRight className="w-3.5 h-3.5 text-black" />
-                                                Tarik Pembaruan
-                                            </p>
-                                            <p className="text-[10px] text-neutral-600 mt-0.5">
-                                                Ambil update dari pasangan ke <strong>"{currentApp.name}"</strong>
-                                            </p>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setSyncDirection('push')}
-                                            className={`p-2.5 border-2 border-black text-left cursor-pointer transition-all ${
-                                                syncDirection === 'push'
-                                                    ? 'bg-[#A6E3A1] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-bold'
-                                                    : 'bg-white hover:bg-neutral-50'
-                                            }`}
-                                        >
-                                            <p className="text-xs font-heading font-black uppercase text-black flex items-center gap-1.5">
-                                                <ArrowRight className="w-3.5 h-3.5 text-black" />
-                                                Kirim Pembaruan
-                                            </p>
-                                            <p className="text-[10px] text-neutral-600 mt-0.5">
-                                                Kirim catatan dari <strong>"{currentApp.name}"</strong> ke pasangan
-                                            </p>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t-2 border-black">
-                            <NeoButton
-                                type="button"
-                                variant="white"
-                                size="sm"
-                                onClick={onClose}
-                            >
-                                Batal
-                            </NeoButton>
-
-                            {targets.length > 0 && (
-                                <NeoButton
-                                    type="button"
-                                    variant="yellow"
-                                    size="sm"
-                                    disabled={!selectedTargetId || isLoadingDiff}
-                                    onClick={handleCompareDiff}
-                                >
-                                    <Sparkles className="w-4 h-4 mr-1.5" />
-                                    {isLoadingDiff ? 'Membandingkan...' : 'Bandingkan & Cek Perubahan'}
-                                </NeoButton>
-                            )}
-                        </div>
+                {/* Safety & Direction Header */}
+                <div className="p-3 bg-[#FFFDF8] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs font-bold text-black flex-wrap">
+                        <span className="px-2 py-0.5 bg-neutral-100 border border-black uppercase text-[10px] font-black">
+                            Asal
+                        </span>
+                        <span className="font-heading font-black uppercase text-black truncate max-w-[160px]">
+                            {sourceAppName || 'Ruang Kerja Asal'}
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5 text-black shrink-0" />
+                        <span className="px-2 py-0.5 bg-[#FFDC58] border border-black uppercase text-[10px] font-black">
+                            Tujuan (Duplikat)
+                        </span>
+                        <span className="font-heading font-black uppercase text-black truncate max-w-[160px]">
+                            {targetAppName || currentApp.name}
+                        </span>
                     </div>
-                )}
+                    <p className="text-[11px] text-neutral-600 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>
+                            Sinkronisasi satu arah: mengambil data dari ruang kerja original ke duplikat ini. Ruang kerja original Anda tidak akan pernah terubah.
+                        </span>
+                    </p>
+                </div>
 
-                {/* STEP 2: REVIEW DIFF & CHOOSE MERGE ACTIONS */}
-                {step === 'review_diff' && (
-                    <div className="space-y-4">
-                        {/* Source -> Target Indicator Header */}
-                        <div className="p-3 bg-[#F4F0EA] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-between gap-2 text-xs flex-wrap">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="font-bold text-neutral-600 uppercase text-[10px]">Sumber:</span>
-                                <span className="font-heading font-black uppercase text-black truncate max-w-[140px]">{sourceAppName}</span>
-                                <ArrowRight className="w-3.5 h-3.5 text-black shrink-0" />
-                                <span className="font-bold text-neutral-600 uppercase text-[10px]">Tujuan:</span>
-                                <span className="font-heading font-black uppercase text-black truncate max-w-[140px]">{targetAppName}</span>
-                            </div>
-
+                {isLoadingDiff ? (
+                    <div className="p-10 text-center space-y-3 border-2 border-black bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        <Loader2 className="w-7 h-7 animate-spin mx-auto text-black" />
+                        <p className="text-xs font-heading font-black uppercase text-neutral-800">
+                            Memeriksa perbedaan dengan ruang kerja asal...
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                            Menganalisis catatan baru, yang telah berubah, dan yang identik.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {/* Summary Badges & Filter Tabs */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
                             <button
                                 type="button"
-                                onClick={() => setStep('select_target')}
-                                className="text-[10px] font-heading font-black uppercase text-black underline hover:text-indigo-700 cursor-pointer"
+                                onClick={() => setActiveFilter('all')}
+                                className={`px-2.5 py-1 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all ${
+                                    activeFilter === 'all'
+                                        ? 'bg-black text-white font-black'
+                                        : 'bg-white hover:bg-neutral-100 text-black'
+                                }`}
                             >
-                                Ganti Pasangan
+                                Semua ({diffItems.length})
                             </button>
-                        </div>
-
-                        {/* Summary Badges */}
-                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
-                            <span className="px-2 py-0.5 bg-[#A6E3A1] text-emerald-950 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-                                {newCount} Catatan Baru
-                            </span>
-                            <span className="px-2 py-0.5 bg-[#FFE57F] text-amber-950 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-                                {modifiedCount} Berubah
-                            </span>
-                            <span className="px-2 py-0.5 bg-neutral-100 text-neutral-800 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-                                {identicalCount} Identik (Sama)
-                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setActiveFilter('modified')}
+                                className={`px-2.5 py-1 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all ${
+                                    activeFilter === 'modified'
+                                        ? 'bg-[#FFDC58] text-black font-black ring-2 ring-black'
+                                        : 'bg-[#FFE57F] text-amber-950 hover:bg-[#FFDC58]'
+                                }`}
+                            >
+                                Berubah ({modifiedCount})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveFilter('new')}
+                                className={`px-2.5 py-1 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all ${
+                                    activeFilter === 'new'
+                                        ? 'bg-[#A6E3A1] text-emerald-950 font-black ring-2 ring-black'
+                                        : 'bg-[#DCFCE7] text-emerald-900 hover:bg-[#A6E3A1]'
+                                }`}
+                            >
+                                Baru ({newCount})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveFilter('identical')}
+                                className={`px-2.5 py-1 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all ${
+                                    activeFilter === 'identical'
+                                        ? 'bg-neutral-400 text-black font-black ring-2 ring-black'
+                                        : 'bg-neutral-100 text-neutral-800 hover:bg-neutral-200'
+                                }`}
+                            >
+                                Sama ({identicalCount})
+                            </button>
                             {targetOnlyCount > 0 && (
-                                <span className="px-2 py-0.5 bg-purple-100 text-purple-950 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-                                    {targetOnlyCount} Hanya di Target
-                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveFilter('target_only')}
+                                    className={`px-2.5 py-1 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all ${
+                                        activeFilter === 'target_only'
+                                            ? 'bg-purple-300 text-purple-950 font-black ring-2 ring-black'
+                                            : 'bg-purple-100 text-purple-950 hover:bg-purple-200'
+                                    }`}
+                                >
+                                    Hanya di Duplikat ({targetOnlyCount})
+                                </button>
                             )}
                         </div>
 
                         {/* Quick Selection Buttons */}
-                        <div className="p-2.5 bg-white border-2 border-black flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-[10px] font-heading font-black uppercase text-neutral-500">
+                        <div className="p-2.5 bg-white border-2 border-black flex flex-wrap items-center justify-between gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                            <span className="text-[10px] font-heading font-black uppercase text-neutral-600 flex items-center gap-1">
+                                <Sparkles className="w-3.5 h-3.5 text-black" />
                                 Aksi Cepat:
                             </span>
                             <div className="flex flex-wrap items-center gap-1">
                                 <button
                                     type="button"
-                                    onClick={() => handleSetAllActions('add')}
-                                    className="px-2 py-0.5 bg-white hover:bg-neutral-100 border border-black text-[10px] font-bold text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                    onClick={() => handleSetAllActions('overwrite')}
+                                    className="px-2 py-0.5 bg-[#FFDC58] hover:bg-[#FFE57F] border border-black text-[10px] font-bold text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
                                 >
-                                    Semua Tambah
+                                    Timpa yang Berubah
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => handleSetAllActions('overwrite')}
-                                    className="px-2 py-0.5 bg-white hover:bg-neutral-100 border border-black text-[10px] font-bold text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                    onClick={() => handleSetAllActions('add')}
+                                    className="px-2 py-0.5 bg-[#A6E3A1] hover:bg-[#DCFCE7] border border-black text-[10px] font-bold text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
                                 >
-                                    Semua Timpa
+                                    Tambahkan yang Baru
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => handleSetAllActions('create_new')}
-                                    className="px-2 py-0.5 bg-white hover:bg-neutral-100 border border-black text-[10px] font-bold text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                    className="px-2 py-0.5 bg-[#69D2E7] hover:bg-[#A8E6CF] border border-black text-[10px] font-bold text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
                                 >
-                                    Semua Nama Baru
+                                    Salinan Baru
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => handleSetAllActions('skip')}
-                                    className="px-2 py-0.5 bg-white hover:bg-neutral-100 border border-black text-[10px] font-bold text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                    className="px-2 py-0.5 bg-neutral-200 hover:bg-neutral-300 border border-black text-[10px] font-bold text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
                                 >
                                     Abaikan Semua
                                 </button>
@@ -443,12 +343,14 @@ export default function SyncWorkspaceModal({
 
                         {/* Notes Diff List */}
                         <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-                            {diffItems.length === 0 ? (
-                                <div className="p-6 text-center text-xs font-bold text-neutral-500 border-2 border-dashed border-black">
-                                    Tidak ada catatan untuk dibandingkan.
+                            {filteredItems.length === 0 ? (
+                                <div className="p-6 text-center text-xs font-bold text-neutral-500 border-2 border-dashed border-black bg-[#FFFDF8]">
+                                    {diffItems.length === 0
+                                        ? 'Tidak ada catatan di ruang kerja asal.'
+                                        : 'Tidak ada catatan pada kategori filter ini.'}
                                 </div>
                             ) : (
-                                diffItems.map((item, idx) => {
+                                filteredItems.map((item, idx) => {
                                     const key = item.source_note_id || item.target_note_id || `idx_${idx}`;
                                     const currentAction = actions[key] || 'skip';
 
@@ -463,16 +365,16 @@ export default function SyncWorkspaceModal({
                                         >
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-neutral-200">
                                                 <div className="flex items-center gap-1.5 min-w-0">
-                                                    <span className={`px-1.5 py-0.2 border border-black text-[9px] font-black uppercase shrink-0 ${
+                                                    <span className={`px-1.5 py-0.5 border border-black text-[9px] font-black uppercase shrink-0 ${
                                                         item.status === 'new'
                                                             ? 'bg-[#A6E3A1] text-emerald-950'
                                                             : (item.status === 'modified'
-                                                                ? 'bg-[#FFE57F] text-amber-950'
+                                                                ? 'bg-[#FFDC58] text-amber-950'
                                                                 : (item.status === 'identical'
                                                                     ? 'bg-neutral-200 text-neutral-800'
                                                                     : 'bg-purple-100 text-purple-950'))
                                                     }`}>
-                                                        {item.status === 'new' ? 'Baru' : (item.status === 'modified' ? 'Berubah' : (item.status === 'identical' ? 'Sama' : 'Hanya di Target'))}
+                                                        {item.status === 'new' ? 'Baru' : (item.status === 'modified' ? 'Berubah' : (item.status === 'identical' ? 'Sama' : 'Hanya di Duplikat'))}
                                                     </span>
 
                                                     <div className="min-w-0">
@@ -487,7 +389,7 @@ export default function SyncWorkspaceModal({
                                                 </div>
 
                                                 {/* Action Selector */}
-                                                <div className="flex items-center gap-1 shrink-0">
+                                                <div className="flex items-center gap-1 shrink-0 flex-wrap">
                                                     {item.status === 'new' && (
                                                         <button
                                                             type="button"
@@ -508,7 +410,7 @@ export default function SyncWorkspaceModal({
                                                                 className={`px-2 py-1 text-[10px] font-heading font-black uppercase border border-black cursor-pointer ${
                                                                     currentAction === 'overwrite' ? 'bg-[#FFDC58] text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : 'bg-white hover:bg-neutral-50'
                                                                 }`}
-                                                                title="Timpa isi catatan di tujuan dengan versi sumber"
+                                                                title="Timpa isi catatan di duplikat ini dengan versi original asal"
                                                             >
                                                                 🔄 Timpa
                                                             </button>
@@ -541,10 +443,10 @@ export default function SyncWorkspaceModal({
                                             {(item.source_preview || item.target_preview) && (
                                                 <div className="pt-2 text-[11px] text-neutral-600 line-clamp-2">
                                                     {item.source_preview ? (
-                                                        <span><strong className="text-black">Sumber:</strong> {item.source_preview}</span>
+                                                        <span><strong className="text-black">Sumber (Asal):</strong> {item.source_preview}</span>
                                                     ) : null}
                                                     {item.target_preview && item.source_preview !== item.target_preview ? (
-                                                        <span className="block mt-0.5 text-neutral-500"><strong className="text-neutral-700">Tujuan:</strong> {item.target_preview}</span>
+                                                        <span className="block mt-0.5 text-neutral-500"><strong className="text-neutral-700">Tujuan (Duplikat):</strong> {item.target_preview}</span>
                                                     ) : null}
                                                 </div>
                                             )}
@@ -560,10 +462,10 @@ export default function SyncWorkspaceModal({
                                 type="button"
                                 variant="white"
                                 size="sm"
-                                onClick={() => setStep('select_target')}
+                                onClick={onClose}
                                 disabled={isApplying}
                             >
-                                Kembali
+                                Batal
                             </NeoButton>
 
                             <NeoButton
@@ -574,7 +476,7 @@ export default function SyncWorkspaceModal({
                                 disabled={isApplying || activeChangesCount === 0}
                             >
                                 <RefreshCw className={`w-4 h-4 mr-1.5 ${isApplying ? 'animate-spin' : ''}`} />
-                                {isApplying ? 'Menerapkan...' : `Terapkan Sinkronisasi (${activeChangesCount} Aksi)`}
+                                {isApplying ? 'Menerapkan...' : `Tarik Sinkronisasi (${activeChangesCount} Catatan)`}
                             </NeoButton>
                         </div>
                     </div>

@@ -137,9 +137,6 @@ export default function WorkspaceIndex({
 
         router.delete(`/app/${targetApp.id}`, {
             preserveScroll: true,
-            onSuccess: () => {
-                router.reload({ only: ['apps', 'counts'] });
-            },
         });
     };
 
@@ -410,7 +407,6 @@ export default function WorkspaceIndex({
                     }}
                     onDeleted={() => {
                         setEditingApp(null);
-                        router.reload({ only: ['apps', 'counts'] });
                     }}
                 />
             )}

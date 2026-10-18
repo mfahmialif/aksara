@@ -444,7 +444,7 @@ class NoteAppController extends Controller
             ]);
         }
 
-        return redirect()->route('apps.index')->with('success', 'Aplikasi "'.$name.'" telah dihapus.');
+        return redirect()->to(route('apps.index'), 303)->with('success', 'Ruang kerja "'.$name.'" telah dihapus.');
     }
 
     public function addCollaborator($id, Request $request)
@@ -1085,8 +1085,22 @@ class NoteAppController extends Controller
             'target_app_id' => 'required|uuid',
         ]);
 
-        $sourceApp = NoteApp::with(['groups.notes'])->findOrFail($validated['source_app_id']);
-        $targetApp = NoteApp::with(['groups.notes'])->findOrFail($validated['target_app_id']);
+        $sourceApp = NoteApp::with(['groups.notes'])->find($validated['source_app_id']);
+        $targetApp = NoteApp::with(['groups.notes'])->find($validated['target_app_id']);
+
+        if (! $sourceApp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ruang kerja asal tidak ditemukan atau sudah dihapus.',
+            ], 404);
+        }
+
+        if (! $targetApp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ruang kerja tujuan tidak ditemukan.',
+            ], 404);
+        }
 
         if (! $sourceApp->canUserView($user)) {
             abort(403, 'Anda tidak memiliki akses ke ruang kerja sumber.');
@@ -1115,7 +1129,12 @@ class NoteAppController extends Controller
         $matchedTargetIds = [];
 
         foreach ($allSourceNotes as $sNote) {
-            $twin = $allTargetNotes->first(function ($tNote) use ($sNote) {
+            $candidateTargets = $allTargetNotes->filter(function ($tNote) use ($matchedTargetIds) {
+                return ! in_array($tNote->id, $matchedTargetIds, true);
+            });
+
+            // 1. Strict Lineage Match via cloned_from_id
+            $twin = $candidateTargets->first(function ($tNote) use ($sNote) {
                 if ($tNote->cloned_from_id && $tNote->cloned_from_id === $sNote->id) {
                     return true;
                 }
@@ -1126,9 +1145,30 @@ class NoteAppController extends Controller
                     return true;
                 }
 
-                return mb_strtolower(trim($tNote->group_name)) === mb_strtolower(trim($sNote->group_name))
-                    && mb_strtolower(trim($tNote->title)) === mb_strtolower(trim($sNote->title));
+                return false;
             });
+
+            // 2. If no lineage match, match by same group + same title + identical content
+            if (! $twin) {
+                $twin = $candidateTargets->first(function ($tNote) use ($sNote) {
+                    $sameGroup = mb_strtolower(trim($tNote->group_name)) === mb_strtolower(trim($sNote->group_name));
+                    $sameTitle = mb_strtolower(trim($tNote->title)) === mb_strtolower(trim($sNote->title));
+                    if (! $sameGroup || ! $sameTitle) {
+                        return false;
+                    }
+
+                    return $this->normalizeContent($sNote->content_json) === $this->normalizeContent($tNote->content_json)
+                        && $this->normalizeDrawing($sNote->drawing_data) === $this->normalizeDrawing($tNote->drawing_data);
+                });
+            }
+
+            // 3. Fallback: match by same group + same title
+            if (! $twin) {
+                $twin = $candidateTargets->first(function ($tNote) use ($sNote) {
+                    return mb_strtolower(trim($tNote->group_name)) === mb_strtolower(trim($sNote->group_name))
+                        && mb_strtolower(trim($tNote->title)) === mb_strtolower(trim($sNote->title));
+                });
+            }
 
             $sPreview = '';
             if (! empty($sNote->content_json)) {
@@ -1164,9 +1204,9 @@ class NoteAppController extends Controller
 
                 $isDiff = (trim($sNote->title) !== trim($twin->title))
                     || ($sNote->category !== $twin->category)
-                    || (trim((string) $sNote->content_json) !== trim((string) $twin->content_json))
-                    || (trim((string) $sNote->drawing_data) !== trim((string) $twin->drawing_data))
-                    || ($sNote->deadline_at?->toIso8601String() !== $twin->deadline_at?->toIso8601String());
+                    || ($this->normalizeContent($sNote->content_json) !== $this->normalizeContent($twin->content_json))
+                    || ($this->normalizeDrawing($sNote->drawing_data) !== $this->normalizeDrawing($twin->drawing_data))
+                    || ($sNote->deadline_at?->timestamp !== $twin->deadline_at?->timestamp);
 
                 $diffItems[] = [
                     'source_note_id' => $sNote->id,
@@ -1240,8 +1280,22 @@ class NoteAppController extends Controller
             'actions.*.action' => 'required|in:add,overwrite,create_new,skip',
         ]);
 
-        $sourceApp = NoteApp::with(['groups.notes.attachments'])->findOrFail($validated['source_app_id']);
-        $targetApp = NoteApp::with(['groups.notes'])->findOrFail($validated['target_app_id']);
+        $sourceApp = NoteApp::with(['groups.notes.attachments'])->find($validated['source_app_id']);
+        $targetApp = NoteApp::with(['groups.notes'])->find($validated['target_app_id']);
+
+        if (! $sourceApp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ruang kerja asal tidak ditemukan atau sudah dihapus.',
+            ], 404);
+        }
+
+        if (! $targetApp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ruang kerja tujuan tidak ditemukan.',
+            ], 404);
+        }
 
         if (! $sourceApp->canUserView($user)) {
             abort(403, 'Akses ruang kerja sumber ditolak.');
@@ -1307,6 +1361,7 @@ class NoteAppController extends Controller
                     $appliedCount++;
                 } elseif ($action === 'overwrite' && $targetNote && $srcNote) {
                     $targetNote->update([
+                        'cloned_from_id' => $srcNote->id,
                         'title' => $srcNote->title,
                         'category' => $srcNote->category,
                         'content_json' => $srcNote->content_json,
@@ -1358,5 +1413,60 @@ class NoteAppController extends Controller
             'message' => "Sinkronisasi berhasil! {$appliedCount} catatan diperbarui.",
             'applied_count' => $appliedCount,
         ]);
+    }
+
+    /**
+     * Normalize content_json string to compare logically identical notes.
+     */
+    protected function normalizeContent(?string $contentJson): string
+    {
+        if (empty($contentJson)) {
+            return '';
+        }
+
+        $decoded = json_decode($contentJson, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            if (isset($decoded['html']) && is_string($decoded['html'])) {
+                $html = str_replace(["\r\n", "\r"], "\n", $decoded['html']);
+                $html = preg_replace('/\s+/', ' ', $html);
+                $html = trim($html);
+                if (in_array($html, ['<p><br></p>', '<p></p>', '<p><br/></p>'], true)) {
+                    $html = '';
+                }
+                $decoded['html'] = $html;
+            }
+            if (isset($decoded['checklist']) && is_array($decoded['checklist'])) {
+                $decoded['checklist'] = array_values($decoded['checklist']);
+            }
+            ksort($decoded);
+
+            return json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        $raw = str_replace(["\r\n", "\r"], "\n", $contentJson);
+
+        return trim(preg_replace('/\s+/', ' ', $raw));
+    }
+
+    /**
+     * Normalize drawing_data string for comparison.
+     */
+    protected function normalizeDrawing(?string $drawingData): string
+    {
+        if (empty($drawingData)) {
+            return '';
+        }
+
+        $decoded = json_decode($drawingData, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            if (isset($decoded['lines']) && empty($decoded['lines']) && empty($decoded['preview'])) {
+                return '';
+            }
+            ksort($decoded);
+
+            return json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        return trim($drawingData);
     }
 }

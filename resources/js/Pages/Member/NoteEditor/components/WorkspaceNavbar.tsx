@@ -272,12 +272,12 @@ export default function WorkspaceNavbar({
                             </button>
                         )}
 
-                        {!isGroupSharedView && onOpenSync && (Boolean(app.cloned_from_id) || (app.active_clones_count || 0) > 0) && (
+                        {!isGroupSharedView && onOpenSync && Boolean(app.cloned_from_id) && (
                             <button
                                 type="button"
                                 onClick={onOpenSync}
                                 className="h-8 sm:h-9 px-2 sm:px-2.5 bg-white hover:bg-[#A6E3A1] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-black cursor-pointer transition-all flex items-center gap-1.5 text-xs font-heading font-black uppercase"
-                                title="Sinkronisasi Perubahan dengan Duplikat / Induk"
+                                title="Tarik Sinkronisasi dari Ruang Kerja Asal"
                             >
                                 <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
                                 <span className="hidden lg:inline">Sinkron</span>
@@ -462,7 +462,7 @@ export default function WorkspaceNavbar({
                                     )}
 
                                     {/* Sinkronisasi */}
-                                    {!isGroupSharedView && onOpenSync && (Boolean(app.cloned_from_id) || (app.active_clones_count || 0) > 0) && (
+                                    {!isGroupSharedView && onOpenSync && Boolean(app.cloned_from_id) && (
                                         <button
                                             type="button"
                                             onClick={() => {
@@ -476,10 +476,10 @@ export default function WorkspaceNavbar({
                                             </div>
                                             <div className="flex flex-col min-w-0">
                                                 <span className="font-heading font-black text-xs uppercase text-black">
-                                                    Sinkronisasi Perubahan
+                                                    Tarik Sinkronisasi
                                                 </span>
                                                 <span className="text-[10px] text-neutral-600">
-                                                    Bandingkan & sinkron catatan
+                                                    Ambil pembaruan dari ruang kerja asal
                                                 </span>
                                             </div>
                                         </button>

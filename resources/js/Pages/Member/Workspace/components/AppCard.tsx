@@ -126,7 +126,7 @@ export default function AppCard({
                                 <Copy className="w-3.5 h-3.5 text-black" />
                             </button>
                         )}
-                        {onSync && (Boolean(app.cloned_from_id) || (app.active_clones_count || 0) > 0) && (
+                        {onSync && Boolean(app.cloned_from_id) && (
                             <button
                                 type="button"
                                 onClick={(e) => {
@@ -134,7 +134,7 @@ export default function AppCard({
                                     e.stopPropagation();
                                     onSync(app);
                                 }}
-                                title="Sinkronisasi Perubahan dengan Duplikat / Induk"
+                                title="Tarik Sinkronisasi dari Ruang Kerja Asal"
                                 className="p-1 bg-white hover:bg-[#A6E3A1] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-colors cursor-pointer"
                             >
                                 <RefreshCw className="w-3.5 h-3.5 text-black" />
