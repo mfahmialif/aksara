@@ -130,6 +130,19 @@ export default function WorkspaceIndex({
         });
     };
 
+    const handleDeleteApp = (targetApp: NoteApp) => {
+        const label = targetApp.topic_label ? targetApp.topic_label.toLowerCase() : 'topik';
+        const confirmMsg = `Hapus ruang kerja "${targetApp.name}" secara permanen?\n\nSemua ${label} dan catatan di dalamnya akan terhapus dan tidak dapat dikembalikan!`;
+        if (!window.confirm(confirmMsg)) return;
+
+        router.delete(`/app/${targetApp.id}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                router.reload({ only: ['apps', 'counts'] });
+            },
+        });
+    };
+
     const themeColors: Record<string, string> = {
         yellow: 'bg-[#FFDC58]',
         purple: 'bg-[#A388EE]',
@@ -312,6 +325,7 @@ export default function WorkspaceIndex({
                                 onDuplicate={(targetApp) => setDuplicatingApp(targetApp)}
                                 onSync={(targetApp) => setSyncingApp(targetApp)}
                                 onViewClones={(targetApp) => setClonesApp(targetApp)}
+                                onDelete={handleDeleteApp}
                             />
                         ))}
                     </div>
@@ -392,6 +406,10 @@ export default function WorkspaceIndex({
                     app={editingApp}
                     isOwner={Boolean(auth?.user?.id && editingApp.owner_id === auth.user.id)}
                     onUpdated={() => {
+                        router.reload({ only: ['apps', 'counts'] });
+                    }}
+                    onDeleted={() => {
+                        setEditingApp(null);
                         router.reload({ only: ['apps', 'counts'] });
                     }}
                 />

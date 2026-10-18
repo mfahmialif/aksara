@@ -16,6 +16,7 @@ interface AppCardProps {
     onDuplicate?: (app: NoteApp) => void;
     onSync?: (app: NoteApp) => void;
     onViewClones?: (app: NoteApp) => void;
+    onDelete?: (app: NoteApp) => void;
 }
 
 export default function AppCard({
@@ -25,6 +26,7 @@ export default function AppCard({
     onDuplicate,
     onSync,
     onViewClones,
+    onDelete,
 }: AppCardProps) {
     const { auth } = usePage<PageProps>().props;
     const isOwner = Boolean(auth?.user?.id && app.owner_id === auth.user.id);
@@ -150,6 +152,20 @@ export default function AppCard({
                                 className="p-1 bg-white hover:bg-[#FFDC58] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-colors cursor-pointer"
                             >
                                 <Settings className="w-3.5 h-3.5 text-black" />
+                            </button>
+                        )}
+                        {isOwner && onDelete && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onDelete(app);
+                                }}
+                                title="Hapus Ruang Kerja"
+                                className="p-1 bg-white hover:bg-[#FF6B6B] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-colors cursor-pointer"
+                            >
+                                <Trash2 className="w-3.5 h-3.5 text-black" />
                             </button>
                         )}
                         <span title={app.is_public ? (app.public_permission === 'edit' ? 'Publik (Bisa Diedit)' : 'Publik (Hanya Baca)') : 'Privat'}>

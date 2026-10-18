@@ -4,7 +4,7 @@ import { NoteApp } from '@/types';
 import NeoModal from '@/Components/UI/NeoModal';
 import NeoButton from '@/Components/UI/NeoButton';
 import { NeoInput, NeoTextarea } from '@/Components/UI/NeoInput';
-import { Settings, UserCheck, Check, Mail, AlertTriangle, XCircle, Send, Clock, ShieldAlert } from 'lucide-react';
+import { Settings, UserCheck, Check, Mail, AlertTriangle, XCircle, Send, Clock, ShieldAlert, Trash2 } from 'lucide-react';
 import { getCsrfToken } from '@/utils/csrf';
 
 const COLOR_THEMES = [
@@ -23,6 +23,7 @@ interface EditAppModalProps {
     app: NoteApp;
     isOwner: boolean;
     onUpdated?: (updatedApp: NoteApp) => void;
+    onDeleted?: (deletedAppId: string) => void;
 }
 
 export default function EditAppModal({
@@ -40,6 +41,7 @@ export default function EditAppModal({
     const [description, setDescription] = useState(app.description || '');
     const [topicLabel, setTopicLabel] = useState(app.topic_label || 'Topik');
     const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [isDeletingApp, setIsDeletingApp] = useState(false);
     const [settingsError, setSettingsError] = useState<string | null>(null);
     const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
 
@@ -64,6 +66,7 @@ export default function EditAppModal({
             setTransferError(null);
             setTransferSuccess(null);
             setTransferEmail('');
+            setIsDeletingApp(false);
 
             // Fetch pending transfer if owner
             if (isOwner) {
@@ -91,6 +94,59 @@ export default function EditAppModal({
             // Silently ignore check failure
         } finally {
             setIsLoadingPending(false);
+        }
+    };
+
+    const handleDeleteApp = async () => {
+        if (!isOwner) return;
+
+        const confirmMsg = `Hapus ruang kerja "${app.name}" secara permanen?\n\nSemua ${topicLabel.toLowerCase()} dan catatan di dalamnya akan terhapus dan tidak dapat dikembalikan!`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsDeletingApp(true);
+        setSettingsError(null);
+
+        try {
+            const csrfToken = getCsrfToken();
+            const res = await fetch(`/app/${app.id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                onClose();
+                if (onDeleted) {
+                    onDeleted(app.id);
+                } else if (typeof window !== 'undefined' && window.location.pathname.startsWith(`/app/${app.id}`)) {
+                    router.visit('/app');
+                } else {
+                    router.reload();
+                }
+            } else {
+                setSettingsError(data.message || 'Gagal menghapus ruang kerja.');
+                setIsDeletingApp(false);
+            }
+        } catch {
+            router.delete(`/app/${app.id}`, {
+                onSuccess: () => {
+                    onClose();
+                    if (onDeleted) {
+                        onDeleted(app.id);
+                    } else if (typeof window !== 'undefined' && window.location.pathname.startsWith(`/app/${app.id}`)) {
+                        router.visit('/app');
+                    }
+                },
+                onError: () => {
+                    setSettingsError('Terjadi kesalahan saat menghapus ruang kerja.');
+                    setIsDeletingApp(false);
+                },
+            });
         }
     };
 
@@ -362,13 +418,41 @@ export default function EditAppModal({
                             onChange={(e) => setDescription(e.target.value)}
                         />
 
+                        {/* Danger Zone: Hapus Ruang Kerja */}
+                        {isOwner && (
+                            <div className="p-3.5 bg-[#FFF0F0] border-2 border-[#FF6B6B] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] space-y-2 mt-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div>
+                                        <div className="flex items-center gap-1.5 text-rose-950 font-heading font-black text-xs uppercase">
+                                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                            <span>Zona Berbahaya</span>
+                                        </div>
+                                        <p className="text-[11px] text-rose-800 mt-0.5">
+                                            Hapus permanen ruang kerja ini beserta seluruh {topicLabel.toLowerCase()} dan catatannya.
+                                        </p>
+                                    </div>
+                                    <NeoButton
+                                        type="button"
+                                        variant="coral"
+                                        size="sm"
+                                        onClick={handleDeleteApp}
+                                        disabled={isSavingSettings || isDeletingApp}
+                                        className="shrink-0"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                        <span>{isDeletingApp ? 'Menghapus...' : 'Hapus Ruang Kerja'}</span>
+                                    </NeoButton>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-end gap-3 pt-4 border-t-2 border-black">
                             <NeoButton
                                 type="button"
                                 variant="white"
                                 size="sm"
                                 onClick={onClose}
-                                disabled={isSavingSettings}
+                                disabled={isSavingSettings || isDeletingApp}
                             >
                                 Batal
                             </NeoButton>
@@ -376,7 +460,7 @@ export default function EditAppModal({
                                 type="submit"
                                 variant="yellow"
                                 size="sm"
-                                disabled={isSavingSettings || !name.trim()}
+                                disabled={isSavingSettings || isDeletingApp || !name.trim()}
                             >
                                 {isSavingSettings ? 'Menyimpan...' : 'Simpan Perubahan'}
                             </NeoButton>

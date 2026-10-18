@@ -744,6 +744,10 @@ export default function NoteEditor({
                     onUpdated={(updated) => {
                         setLocalApp(updated);
                     }}
+                    onDeleted={() => {
+                        setEditAppModalOpen(false);
+                        router.visit('/app');
+                    }}
                 />
             )}
 

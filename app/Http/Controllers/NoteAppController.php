@@ -431,9 +431,18 @@ class NoteAppController extends Controller
         }
 
         $name = $app->name;
+        $app->collaborators()->delete();
         $app->delete();
 
         ActivityLogger::log('DELETE_WORKSPACE', "Menghapus ruang kerja '{$name}'");
+
+        if (request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Ruang kerja "'.$name.'" telah dihapus.',
+                'redirect' => route('apps.index'),
+            ]);
+        }
 
         return redirect()->route('apps.index')->with('success', 'Aplikasi "'.$name.'" telah dihapus.');
     }
