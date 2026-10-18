@@ -17,6 +17,7 @@ export default function PublicNote({
     is_saved = false,
     can_edit = false,
     is_owner = false,
+    is_collaborator = false,
     share_public_token,
 }: PublicNoteProps) {
     const { auth, system_settings } = usePage<PageProps>().props;
