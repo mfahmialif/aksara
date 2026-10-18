@@ -15,6 +15,7 @@ interface KeepNoteCreatorProps {
     activeGroupId: number | 'all';
     canEdit: boolean;
     defaultReminderDays?: number;
+    topicLabel?: string;
     onNoteCreated: (note: Note) => void;
     autoFocusTrigger?: number;
 }
@@ -35,6 +36,7 @@ export default function KeepNoteCreator({
     activeGroupId,
     canEdit,
     defaultReminderDays = 1,
+    topicLabel = 'Topik',
     onNoteCreated,
     autoFocusTrigger,
 }: KeepNoteCreatorProps) {
@@ -403,7 +405,7 @@ export default function KeepNoteCreator({
                         {/* Topic Picker */}
                         <div className="flex items-center gap-2">
                             <Folder className="w-4 h-4 text-black" />
-                            <span className="text-xs font-black uppercase font-heading">Topik:</span>
+                            <span className="text-xs font-black uppercase font-heading">{topicLabel || 'Topik'}:</span>
                             <select
                                 value={targetGroupId}
                                 onChange={(e) => {

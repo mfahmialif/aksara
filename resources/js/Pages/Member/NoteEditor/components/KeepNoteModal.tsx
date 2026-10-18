@@ -10,7 +10,7 @@ import PersonalNoteReminder from '@/Components/PersonalNoteReminder';
 import {
     X, Check, AlertCircle, Users, Share2, Trash2,
     FileText, CheckSquare, PenTool, Paperclip, Clock,
-    Folder, Maximize2, Minimize2, Pin
+    Folder, Maximize2, Minimize2, Pin, Copy
 } from 'lucide-react';
 import { lockBodyScroll, unlockBodyScroll } from '@/utils/modalScrollLock';
 
@@ -22,6 +22,7 @@ interface KeepNoteModalProps {
     canEdit: boolean;
     user: User | null;
     systemSettings?: SystemSettings;
+    topicLabel?: string;
     onNoteUpdated: (note: Note) => void;
     onNoteCreated?: (note: Note) => void;
     onDeleteNote: (noteId: string) => void;
@@ -48,6 +49,7 @@ export default function KeepNoteModal({
     canEdit,
     user,
     systemSettings,
+    topicLabel,
     onNoteUpdated,
     onNoteCreated,
     onDeleteNote,
@@ -301,12 +303,66 @@ export default function KeepNoteModal({
         };
     }, [isOpen]);
 
+    // Copy group / topic name state
+    const [hasCopiedGroupName, setHasCopiedGroupName] = useState(false);
+    const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (copyTimeoutRef.current) {
+                clearTimeout(copyTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    const fallbackCopyText = (text: string) => {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+        } catch {
+            // ignore
+        }
+        document.body.removeChild(textArea);
+    };
+
+    const handleCopyGroupName = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!groupName) return;
+
+        const textToCopy = groupName;
+        if (navigator?.clipboard?.writeText) {
+            navigator.clipboard.writeText(textToCopy).catch(() => {
+                fallbackCopyText(textToCopy);
+            });
+        } else {
+            fallbackCopyText(textToCopy);
+        }
+
+        setHasCopiedGroupName(true);
+        if (copyTimeoutRef.current) {
+            clearTimeout(copyTimeoutRef.current);
+        }
+        copyTimeoutRef.current = setTimeout(() => {
+            setHasCopiedGroupName(false);
+        }, 2000);
+    };
+
     if (!isOpen || !note || !activeNote) return null;
 
-    // Group name lookup
+    // Group and topic label lookup
+    const matchedGroup = groups.find((g) => String(g.id) === String(activeNote.note_group_id)) || activeNote.group;
+    const resolvedTopicLabel = topicLabel || matchedGroup?.app?.topic_label || 'Topik';
     const groupName =
         activeNote.group?.name ||
-        groups.find((g) => g.id === activeNote.note_group_id)?.name ||
+        matchedGroup?.name ||
+        groups.find((g) => String(g.id) === String(activeNote.note_group_id))?.name ||
         'Grup';
 
     const attachmentsCount = activeNote.attachments?.length || 0;
@@ -362,9 +418,11 @@ export default function KeepNoteModal({
                 <div className="p-2.5 sm:p-4 border-b-2 border-black bg-[#FFFDF8] shrink-0 space-y-2 select-none">
                     {/* Row 1: Group Name/Select (Left) & Actions + Close (Right) */}
                     <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1 select-text">
                             <Folder className="w-3.5 h-3.5 text-black shrink-0" />
-                            <span className="text-[11px] sm:text-xs font-bold text-neutral-600 uppercase shrink-0">Topik:</span>
+                            <span className="text-[11px] sm:text-xs font-bold text-neutral-600 uppercase shrink-0 select-text cursor-default">
+                                {resolvedTopicLabel}:
+                            </span>
                             {isNewNote ? (
                                 <select
                                     value={activeNote.note_group_id}
@@ -383,9 +441,42 @@ export default function KeepNoteModal({
                                     ))}
                                 </select>
                             ) : (
-                                <span className="text-black font-black text-xs uppercase truncate max-w-[120px] sm:max-w-none">
+                                <span
+                                    className="text-black font-black text-xs uppercase truncate max-w-[140px] sm:max-w-none select-text cursor-text selection:bg-[#FFE57F] selection:text-black"
+                                    title={groupName}
+                                >
                                     {groupName}
                                 </span>
+                            )}
+
+                            {!isNewNote && groupName && (
+                                <button
+                                    type="button"
+                                    onClick={handleCopyGroupName}
+                                    className={`px-1.5 py-0.5 border border-black transition-all shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 shrink-0 cursor-pointer flex items-center gap-1 ${
+                                        hasCopiedGroupName
+                                            ? 'bg-[#A6E3A1] text-black font-bold'
+                                            : 'bg-white hover:bg-[#FFDC58] text-black'
+                                    }`}
+                                    title={hasCopiedGroupName ? 'Nama tersalin!' : `Salin nama ${resolvedTopicLabel.toLowerCase()}`}
+                                    aria-label={`Salin nama ${resolvedTopicLabel.toLowerCase()}`}
+                                >
+                                    {hasCopiedGroupName ? (
+                                        <>
+                                            <Check className="w-3 h-3 text-black stroke-[3]" />
+                                            <span className="text-[10px] font-black uppercase font-heading hidden sm:inline">
+                                                Tersalin
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="w-3 h-3 text-black" />
+                                            <span className="text-[10px] font-black uppercase font-heading hidden sm:inline">
+                                                Salin
+                                            </span>
+                                        </>
+                                    )}
+                                </button>
                             )}
                         </div>
 

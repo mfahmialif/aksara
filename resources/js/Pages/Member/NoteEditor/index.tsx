@@ -710,6 +710,7 @@ export default function NoteEditor({
                     canEdit={can_edit}
                     user={user}
                     systemSettings={system_settings}
+                    topicLabel={topicLabel}
                     onNoteUpdated={handleNoteUpdated}
                     onNoteCreated={handleNoteCreated}
                     onDeleteNote={handleDeleteNote}

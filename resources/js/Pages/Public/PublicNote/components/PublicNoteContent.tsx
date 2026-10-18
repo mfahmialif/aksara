@@ -36,7 +36,7 @@ export default function PublicNoteContent({
                             {note.category === 'task' ? 'Tugas' : 'Catatan Biasa'}
                         </NeoBadge>
                         <span className="text-[11px] sm:text-xs text-neutral-500 font-bold truncate max-w-full">
-                            Ruang kerja: {note.group?.app?.name} &bull; Topik: {note.group?.name}
+                            Ruang kerja: {note.group?.app?.name} &bull; {note.group?.app?.topic_label || 'Topik'}: {note.group?.name}
                         </span>
                     </div>
 
