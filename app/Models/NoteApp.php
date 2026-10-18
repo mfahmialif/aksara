@@ -125,4 +125,17 @@ class NoteApp extends Model
 
         return $this->canUserEdit($user);
     }
+
+    public function getActiveCollaboratorsWithOrigin()
+    {
+        $directCollabs = $this->relationLoaded('collaborators') ? $this->collaborators : $this->collaborators()->with('user')->get();
+
+        return $directCollabs->map(function ($collab) {
+            $collab->scope = 'app';
+            $collab->origin_label = 'Akses Ruang Kerja';
+            $collab->can_delete = true;
+
+            return $collab;
+        })->values();
+    }
 }

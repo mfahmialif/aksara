@@ -75,7 +75,9 @@ export interface NoteGroup {
     public_token?: string | null;
     public_permission?: 'read' | 'edit';
     notes?: Note[];
+    notes_count?: number;
     app?: NoteApp;
+    collaborators?: Collaborator[];
 }
 
 export interface ChecklistItem {
@@ -114,6 +116,9 @@ export interface Collaborator {
     permission: string;
     user?: User | null;
     created_at: string;
+    scope?: 'app' | 'group' | 'note';
+    origin_label?: string;
+    can_delete?: boolean;
 }
 
 export interface Note {

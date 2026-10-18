@@ -112,6 +112,10 @@ class Note extends Model
             return true;
         }
 
+        if ($group && $group->canUserEdit($user)) {
+            return true;
+        }
+
         // Check direct note level collaboration
         return $this->isCollaborator($user);
     }
@@ -153,10 +157,56 @@ class Note extends Model
             return false;
         }
 
-        if ($this->group?->app && $this->group->app->canUserView($user)) {
+        if ($this->group && $this->group->canUserView($user)) {
             return true;
         }
 
         return $this->canUserEdit($user);
+    }
+
+    public function getActiveCollaboratorsWithOrigin()
+    {
+        $list = collect();
+
+        // 1. Direct note collaborators
+        $directCollabs = $this->relationLoaded('collaborators') ? $this->collaborators : $this->collaborators()->with('user')->get();
+        foreach ($directCollabs as $collab) {
+            $collab->scope = 'note';
+            $collab->origin_label = 'Akses Khusus Catatan Ini';
+            $collab->can_delete = true;
+            $list->push($collab);
+        }
+
+        // 2. Inherited from Group
+        $group = $this->relationLoaded('group') ? $this->group : $this->group()->with('collaborators.user')->first();
+        if ($group) {
+            $groupCollabs = $group->relationLoaded('collaborators') ? $group->collaborators : $group->collaborators()->with('user')->get();
+            foreach ($groupCollabs as $collab) {
+                if (! $list->contains('invited_email', $collab->invited_email)) {
+                    $c = clone $collab;
+                    $c->scope = 'group';
+                    $c->origin_label = 'Akses Melalui Folder: '.$group->name;
+                    $c->can_delete = false;
+                    $list->push($c);
+                }
+            }
+        }
+
+        // 3. Inherited from App
+        $app = $group ? ($group->relationLoaded('app') ? $group->app : $group->app()->with('collaborators.user')->first()) : null;
+        if ($app) {
+            $appCollabs = $app->relationLoaded('collaborators') ? $app->collaborators : $app->collaborators()->with('user')->get();
+            foreach ($appCollabs as $collab) {
+                if (! $list->contains('invited_email', $collab->invited_email)) {
+                    $c = clone $collab;
+                    $c->scope = 'app';
+                    $c->origin_label = 'Akses Melalui Ruang Kerja';
+                    $c->can_delete = false;
+                    $list->push($c);
+                }
+            }
+        }
+
+        return $list->values();
     }
 }

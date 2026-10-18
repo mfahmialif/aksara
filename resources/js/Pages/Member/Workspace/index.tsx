@@ -9,11 +9,13 @@ import { WorkspacePageProps } from './types';
 import CreateAppModal from './components/CreateAppModal';
 import EditAppModal from '@/Components/Modals/EditAppModal';
 import AppCard from './components/AppCard';
+import StandaloneGroupsSection from './components/StandaloneGroupsSection';
 import StandaloneNotesSection from './components/StandaloneNotesSection';
 import SavedLinksSection from './components/SavedLinksSection';
 
 export default function WorkspaceIndex({
     apps,
+    standalone_groups = [],
     standalone_notes = [],
     saved_other_links = [],
     filters = { type: 'all', search: '', page: 1 },
@@ -351,6 +353,11 @@ export default function WorkspaceIndex({
                     </div>
                 )}
             </section>
+
+            {/* STANDALONE GROUPS SECTION (Folder-Level Collaboration, shown if any exist and on page 1 of all/shared) */}
+            {standalone_groups && standalone_groups.length > 0 && (activeType === 'all' || activeType === 'shared') && (!filters?.page || filters.page === 1) && (
+                <StandaloneGroupsSection standaloneGroups={standalone_groups} />
+            )}
 
             {/* STANDALONE NOTES SECTION (Note-Level Collaboration, shown if any exist and on page 1 of all/shared) */}
             {standalone_notes && standalone_notes.length > 0 && (activeType === 'all' || activeType === 'shared') && (!filters?.page || filters.page === 1) && (

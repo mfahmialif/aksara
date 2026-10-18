@@ -8,6 +8,7 @@ use App\Models\Note;
 use App\Models\NoteApp;
 use App\Models\NoteAttachment;
 use App\Models\NoteGroup;
+use App\Models\SavedSharedLink;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\UserNoteReminder;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class NoteController extends Controller
 {
@@ -76,10 +78,16 @@ class NoteController extends Controller
         ])->with('success', 'Catatan baru berhasil dibuat!');
     }
 
-    public function show($id)
+    public function show($id, Request $request)
     {
         $user = Auth::user();
-        $note = Note::with(['group.app.owner', 'attachments', 'collaborators.user'])->find($id);
+        $note = Note::with([
+            'group.app.owner',
+            'group.app.collaborators.user',
+            'group.collaborators.user',
+            'attachments',
+            'collaborators.user',
+        ])->find($id);
 
         if (! $note) {
             return redirect()->route('apps.index')->with('error', 'Catatan tidak ditemukan atau telah diperbarui.');
@@ -89,9 +97,66 @@ class NoteController extends Controller
             abort(403, 'Anda tidak memiliki hak akses ke catatan ini.');
         }
 
-        return redirect()->route('apps.show', [
-            'app' => $note->group->note_app_id,
-            'note_id' => $note->id,
+        $group = $note->group;
+        $app = $group?->app;
+
+        // 1. If user is owner or app-level collaborator, redirect to full workspace view
+        if ($user && $app && ($app->owner_id === $user->id || $app->isCollaborator($user))) {
+            return redirect()->route('apps.show', [
+                'app' => $app->id,
+                'note_id' => $note->id,
+            ]);
+        }
+
+        // 2. If user is a folder/group-level collaborator, redirect to isolated folder view
+        if ($user && $group && $group->isCollaborator($user)) {
+            return redirect()->route('groups.show', [
+                'group' => $group->id,
+                'note_id' => $note->id,
+            ]);
+        }
+
+        // 3. User is a note-level collaborator only: render isolated single note view!
+        $isOwner = $user && $app && $app->owner_id === $user->id;
+        $canEdit = $note->canUserEdit($user); // TRUE for note collaborator!
+        $isCollaborator = $note->isCollaborator($user);
+        $isSaved = $user ? SavedSharedLink::where('user_id', $user->id)->where('item_type', 'note')->where('item_id', $note->id)->exists() : false;
+        $userReminder = $user ? UserNoteReminder::where('user_id', $user->id)->where('note_id', $note->id)->first() : null;
+
+        $description = "Catatan '{$note->title}' di Aksara Notes.";
+        if (! empty($note->content_json)) {
+            $decoded = json_decode($note->content_json, true);
+            $html = $decoded['html'] ?? '';
+            $cleanText = trim(strip_tags(html_entity_decode((string) $html, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            if (! empty($cleanText)) {
+                $description = Str::limit(preg_replace('/\s+/', ' ', $cleanText), 180);
+            }
+        }
+
+        $seo = [
+            'title' => "{$note->title} — Aksara Notes",
+            'description' => $description,
+            'image' => url('/og-image.png'),
+            'url' => route('notes.show', $note->id),
+            'type' => 'article',
+        ];
+
+        if ($group) {
+            $group->setRelation('notes', collect([$note]));
+        }
+
+        return Inertia::render('Public/PublicNote', [
+            'note' => $note,
+            'app' => $app,
+            'groups' => $group ? collect([$group]) : collect([]),
+            'user_reminder' => $userReminder,
+            'is_saved' => $isSaved,
+            'can_edit' => $canEdit,
+            'is_owner' => $isOwner,
+            'is_collaborator' => $isCollaborator,
+            'is_standalone_collab' => true,
+            'share_public_token' => $note->public_token,
+            'seo' => $seo,
         ]);
     }
 

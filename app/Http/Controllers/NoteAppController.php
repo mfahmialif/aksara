@@ -40,8 +40,35 @@ class NoteAppController extends Controller
                 $query->where('user_id', $user->id)
                     ->orWhere('invited_email', $user->email);
             })->count();
+        $sharedGroupsCount = NoteGroup::whereHas('collaborators', function ($query) use ($user) {
+            $query->where('user_id', $user->id)
+                ->orWhere('invited_email', $user->email);
+        })
+            ->whereDoesntHave('app.collaborators', function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->orWhere('invited_email', $user->email);
+            })
+            ->whereHas('app', function ($query) use ($user) {
+                $query->where('owner_id', '!=', $user->id);
+            })->count();
+        $sharedNotesCount = Note::whereHas('collaborators', function ($query) use ($user) {
+            $query->where('user_id', $user->id)
+                ->orWhere('invited_email', $user->email);
+        })
+            ->whereDoesntHave('group.collaborators', function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->orWhere('invited_email', $user->email);
+            })
+            ->whereDoesntHave('group.app.collaborators', function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->orWhere('invited_email', $user->email);
+            })
+            ->whereHas('group.app', function ($query) use ($user) {
+                $query->where('owner_id', '!=', $user->id);
+            })->count();
+        $totalSharedCount = $sharedAppsCount + $sharedGroupsCount + $sharedNotesCount;
         $savedLinksCount = SavedSharedLink::where('user_id', $user->id)->count();
-        $totalCount = $myAppsCount + $sharedAppsCount + $savedLinksCount;
+        $totalCount = $myAppsCount + $totalSharedCount + $savedLinksCount;
 
         // Build workspace query based on type filter
         $query = NoteApp::query();
@@ -89,6 +116,25 @@ class NoteAppController extends Controller
             ->paginate(9)
             ->withQueryString();
 
+        // Standalone shared folders/groups (collaborator on folder level ONLY)
+        $standaloneSharedGroups = collect();
+        if ($type === 'all' || $type === 'shared') {
+            $standaloneSharedGroups = NoteGroup::whereHas('collaborators', function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->orWhere('invited_email', $user->email);
+            })
+                ->whereDoesntHave('app.collaborators', function ($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                        ->orWhere('invited_email', $user->email);
+                })
+                ->whereHas('app', function ($query) use ($user) {
+                    $query->where('owner_id', '!=', $user->id);
+                })
+                ->with(['app.owner', 'notes'])
+                ->withCount(['notes'])
+                ->get();
+        }
+
         // Standalone shared notes (collaborator on note level ONLY)
         $standaloneSharedNotes = collect();
         if ($type === 'all' || $type === 'shared') {
@@ -96,6 +142,10 @@ class NoteAppController extends Controller
                 $query->where('user_id', $user->id)
                     ->orWhere('invited_email', $user->email);
             })
+                ->whereDoesntHave('group.collaborators', function ($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                        ->orWhere('invited_email', $user->email);
+                })
                 ->whereDoesntHave('group.app.collaborators', function ($query) use ($user) {
                     $query->where('user_id', $user->id)
                         ->orWhere('invited_email', $user->email);
@@ -122,6 +172,7 @@ class NoteAppController extends Controller
 
         return Inertia::render('Member/Workspace', [
             'apps' => $apps,
+            'standalone_groups' => $standaloneSharedGroups,
             'standalone_notes' => $standaloneSharedNotes,
             'saved_other_links' => $savedOtherLinks,
             'filters' => [
@@ -132,7 +183,7 @@ class NoteAppController extends Controller
             'counts' => [
                 'all' => $totalCount,
                 'my_apps' => $myAppsCount,
-                'shared' => $sharedAppsCount,
+                'shared' => $totalSharedCount,
                 'saved' => $savedLinksCount,
             ],
         ]);
@@ -451,6 +502,39 @@ class NoteAppController extends Controller
         ActivityLogger::log('REMOVE_COLLABORATOR', "Menghapus akses kolaborator {$email} dari ruang kerja '{$app->name}'", $app);
 
         return back()->with('success', 'Kolaborator telah dihapus.');
+    }
+
+    public function getCollaborators($type, $id)
+    {
+        $user = Auth::user();
+        if (! in_array($type, ['app', 'group', 'note'], true)) {
+            abort(400, 'Tipe kolaborator tidak valid.');
+        }
+
+        if ($type === 'app') {
+            $item = NoteApp::with('collaborators.user')->findOrFail($id);
+            if (! $item->canUserView($user)) {
+                abort(403);
+            }
+            $collabs = $item->getActiveCollaboratorsWithOrigin();
+        } elseif ($type === 'group') {
+            $item = NoteGroup::with(['collaborators.user', 'app.collaborators.user'])->findOrFail($id);
+            if (! $item->canUserView($user)) {
+                abort(403);
+            }
+            $collabs = $item->getActiveCollaboratorsWithOrigin();
+        } else {
+            $item = Note::with(['collaborators.user', 'group.collaborators.user', 'group.app.collaborators.user'])->findOrFail($id);
+            if (! $item->canUserView($user)) {
+                abort(403);
+            }
+            $collabs = $item->getActiveCollaboratorsWithOrigin();
+        }
+
+        return response()->json([
+            'success' => true,
+            'collaborators' => $collabs,
+        ]);
     }
 
     /**

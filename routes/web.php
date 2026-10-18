@@ -61,6 +61,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Groups
 Route::post('/groups/reorder', [NoteGroupController::class, 'reorder'])->name('groups.reorder');
 Route::post('/app/{app}/groups', [NoteGroupController::class, 'store'])->name('groups.store');
+Route::get('/groups/{group}', [NoteGroupController::class, 'show'])->name('groups.show');
 Route::put('/groups/{group}', [NoteGroupController::class, 'update'])->name('groups.update');
 Route::delete('/groups/{group}', [NoteGroupController::class, 'destroy'])->name('groups.destroy');
 
@@ -87,6 +88,10 @@ Route::middleware(['auth:web'])->group(function () {
     Route::post('/app/{app}/collaborators', [NoteAppController::class, 'addCollaborator'])->name('apps.collaborators.store');
     Route::delete('/app/{app}/collaborators/{collabId}', [NoteAppController::class, 'removeCollaborator'])->name('apps.collaborators.destroy');
 
+    // Group Collaborators
+    Route::post('/groups/{group}/collaborators', [NoteGroupController::class, 'addCollaborator'])->name('groups.collaborators.store');
+    Route::delete('/groups/{group}/collaborators/{collabId}', [NoteGroupController::class, 'removeCollaborator'])->name('groups.collaborators.destroy');
+
     // Workspace Ownership Transfer Management
     Route::get('/app/{app}/pending-transfer', [NoteAppController::class, 'getPendingTransfer'])->name('apps.transfer.pending');
     Route::post('/app/{app}/transfer-ownership', [NoteAppController::class, 'initiateTransferOwnership'])->name('apps.transfer.initiate');
@@ -101,6 +106,9 @@ Route::middleware(['auth:web'])->group(function () {
     // Note Granular Collaborators
     Route::post('/notes/{note}/collaborators', [NoteController::class, 'addCollaborator'])->name('notes.collaborators.store');
     Route::delete('/notes/{note}/collaborators/{collabId}', [NoteController::class, 'removeCollaborator'])->name('notes.collaborators.destroy');
+
+    // Active Collaborators with Origin
+    Route::get('/collaborators/{type}/{id}', [NoteAppController::class, 'getCollaborators'])->name('collaborators.get');
 
     // Personal Reminders
     Route::get('/notes/{note}/personal-reminder', [NoteController::class, 'getPersonalReminder'])->name('notes.personal-reminder.show');

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import PublicLayout from '@/Layouts/PublicLayout';
-import { Globe, X, Bookmark, BookmarkCheck, ExternalLink } from 'lucide-react';
+import { Globe, X, Bookmark, BookmarkCheck, ExternalLink, Users } from 'lucide-react';
 import { PageProps } from '@/types';
 import { PublicNoteProps } from './types';
 import PublicNoteContent from './components/PublicNoteContent';
@@ -162,15 +162,24 @@ export default function PublicNote({
     const resolvedGroups = groups && groups.length > 0 ? groups : (localNote.group ? [localNote.group] : []);
 
     return (
-        <PublicLayout title={`[Publik] ${localNote.title}`}>
+        <PublicLayout title={is_collaborator ? `[Kolaborasi] ${localNote.title}` : `[Publik] ${localNote.title}`}>
             {/* Banner Header */}
             <div className="bg-[#69D2E7] border-b-2 border-black px-3 sm:px-4 py-2.5 sm:py-3">
                 <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
                     <div className="flex items-center gap-2 min-w-0">
-                        <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-black shrink-0" />
+                        {is_collaborator ? (
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-black shrink-0" />
+                        ) : (
+                            <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-black shrink-0" />
+                        )}
                         <span className="font-heading font-black text-xs sm:text-sm uppercase truncate">
-                            Catatan Publik Mandiri
+                            {is_collaborator ? 'Kolaborasi Catatan' : 'Catatan Publik Mandiri'}
                         </span>
+                        {is_collaborator && (
+                            <span className="px-1.5 py-0.2 bg-[#7FBC8C] border border-black text-[10px] font-black uppercase shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] text-black shrink-0">
+                                Akses Penuh
+                            </span>
+                        )}
                         {localNote.group?.name && (
                             <span className="hidden sm:inline text-xs font-bold text-neutral-800 truncate">
                                 &bull; {localNote.group.name}

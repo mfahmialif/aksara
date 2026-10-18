@@ -185,9 +185,23 @@ export default function NoteEditor({
         isOpen: false,
         group: null,
     });
+    const [groupCollabModalState, setGroupCollabModalState] = useState<{
+        isOpen: boolean;
+        group: NoteGroup | null;
+    }>({
+        isOpen: false,
+        group: null,
+    });
 
     const handleOpenShareGroup = (group: NoteGroup) => {
         setGroupShareModalState({
+            isOpen: true,
+            group,
+        });
+    };
+
+    const handleOpenCollabGroup = (group: NoteGroup) => {
+        setGroupCollabModalState({
             isOpen: true,
             group,
         });
@@ -602,8 +616,20 @@ export default function NoteEditor({
             sharePublicToken={share_public_token || (is_group_shared_view && selected_group ? selected_group.public_token || undefined : (is_single_note_view && selected_note ? selected_note.public_token || undefined : localApp.public_token))}
             isPublicView={is_public_view}
             onOpenEditApp={canManageSettings ? () => setEditAppModalOpen(true) : undefined}
-            onOpenCollab={() => setAppCollabOpen(true)}
-            onOpenShare={() => setAppShareOpen(true)}
+            onOpenCollab={() => {
+                if (is_group_shared_view && selected_group) {
+                    handleOpenCollabGroup(selected_group);
+                } else {
+                    setAppCollabOpen(true);
+                }
+            }}
+            onOpenShare={() => {
+                if (is_group_shared_view && selected_group) {
+                    handleOpenShareGroup(selected_group);
+                } else {
+                    setAppShareOpen(true);
+                }
+            }}
             onOpenShareGroup={handleOpenShareGroup}
             onOpenAddGroup={handleOpenAddGroup}
             onOpenEditGroup={handleOpenEditGroup}
@@ -637,6 +663,7 @@ export default function NoteEditor({
                     onOpenEditGroup={handleOpenEditGroup}
                     onDeleteGroup={handleDeleteGroup}
                     onOpenShareGroup={handleOpenShareGroup}
+                    onOpenCollabGroup={handleOpenCollabGroup}
                     onReorderGroups={handleReorderGroups}
                     isMinimized={isTopicSidebarMinimized}
                     setIsMinimized={(val) => handleToggleTopicSidebar(val)}
@@ -871,6 +898,18 @@ export default function NoteEditor({
                 onDelete={handleDeleteGroup}
                 topicLabel={topicLabel}
             />
+
+            {/* Group Level Collaborators Modal */}
+            {groupCollabModalState.group && (
+                <CollaboratorsModal
+                    isOpen={groupCollabModalState.isOpen}
+                    onClose={() => setGroupCollabModalState({ isOpen: false, group: null })}
+                    level="group"
+                    targetId={groupCollabModalState.group.id}
+                    title={groupCollabModalState.group.name}
+                    collaborators={groupCollabModalState.group.collaborators || []}
+                />
+            )}
         </MemberLayout>
     );
 }

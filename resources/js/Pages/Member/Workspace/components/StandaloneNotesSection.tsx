@@ -59,7 +59,7 @@ export default function StandaloneNotesSection({ standaloneNotes }: StandaloneNo
 
                         <div className="p-4 pt-0">
                             <DebouncedPrefetchLink
-                                href={`/app/${note.group?.note_app_id || note.group?.app?.id}?note=${note.id}`}
+                                href={`/notes/${note.id}`}
                                 prefetch="hover"
                                 cacheFor="1m"
                                 className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-neutral-100 border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-heading font-bold text-xs uppercase transition-all"

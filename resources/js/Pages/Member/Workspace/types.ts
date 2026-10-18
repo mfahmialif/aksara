@@ -1,4 +1,4 @@
-import { Note, NoteApp, SavedSharedLink } from '@/types';
+import { Note, NoteApp, NoteGroup, SavedSharedLink } from '@/types';
 
 export interface PaginationLink {
     url: string | null;
@@ -33,11 +33,13 @@ export interface WorkspaceCounts {
     my_apps: number;
     shared: number;
     saved?: number;
+    standalone_groups?: number;
     standalone_notes?: number;
 }
 
 export interface WorkspacePageProps {
     apps: PaginatedData<NoteApp>;
+    standalone_groups?: NoteGroup[];
     standalone_notes?: Note[];
     saved_other_links?: SavedSharedLink[];
     filters: WorkspaceFilters;

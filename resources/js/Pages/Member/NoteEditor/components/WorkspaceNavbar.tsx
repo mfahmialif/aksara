@@ -242,7 +242,24 @@ export default function WorkspaceNavbar({
                         </button>
                     )}
 
-                    {!isGroupSharedView && (
+                    {isGroupSharedView && canEdit && (
+                        <button
+                            type="button"
+                            onClick={onOpenCollab}
+                            className="h-8 sm:h-9 px-2 sm:px-2.5 bg-white hover:bg-[#A388EE] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-black cursor-pointer transition-all flex items-center gap-1.5 text-xs font-heading font-black uppercase"
+                            title={`Kolaborator Folder (${sharedGroup?.collaborators?.length || 0})`}
+                        >
+                            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                            <span className="hidden xl:inline">Kolaborator</span>
+                            {(sharedGroup?.collaborators?.length || 0) > 0 && (
+                                <span className="px-1.5 py-0.2 bg-black text-white text-[10px] font-black">
+                                    {sharedGroup?.collaborators?.length}
+                                </span>
+                            )}
+                        </button>
+                    )}
+
+                    {!isGroupSharedView ? (
                         <button
                             type="button"
                             onClick={onOpenShare}
@@ -252,6 +269,18 @@ export default function WorkspaceNavbar({
                             <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
                             <span className="hidden sm:inline">Bagikan</span>
                         </button>
+                    ) : (
+                        canEdit && (
+                            <button
+                                type="button"
+                                onClick={onOpenShare}
+                                className="h-8 sm:h-9 px-2 sm:px-2.5 bg-[#FFDC58] hover:bg-[#FFE57F] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-black cursor-pointer transition-all flex items-center gap-1.5 text-xs font-heading font-black uppercase"
+                                title="Bagikan Folder"
+                            >
+                                <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                                <span className="hidden sm:inline">Bagikan</span>
+                            </button>
+                        )
                     )}
                 </div>
             </div>

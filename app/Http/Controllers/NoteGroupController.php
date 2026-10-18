@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppNotification;
+use App\Models\Collaborator;
 use App\Models\Note;
 use App\Models\NoteApp;
 use App\Models\NoteGroup;
+use App\Models\SavedSharedLink;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class NoteGroupController extends Controller
 {
@@ -220,5 +225,138 @@ class NoteGroupController extends Controller
         }
 
         return back()->with('success', $isPublic ? 'Folder berhasil dipublikasikan!' : 'Folder kini berstatus privat.');
+    }
+
+    public function show($id, Request $request)
+    {
+        $user = Auth::user();
+        $group = NoteGroup::with([
+            'app.owner',
+            'app.collaborators.user',
+            'collaborators.user',
+            'notes' => function ($q) {
+                $q->with(['attachments', 'collaborators.user'])
+                    ->orderByDesc('is_pinned')
+                    ->orderBy('sort_order', 'asc')
+                    ->orderByDesc('created_at');
+            },
+        ])->findOrFail($id);
+
+        if (! $group->canUserView($user)) {
+            abort(403, 'Anda tidak memiliki hak akses ke Folder ini.');
+        }
+
+        $app = $group->app;
+
+        // If user is owner or app-level collaborator, redirect to full workspace view
+        if ($user && $app && ($app->owner_id === $user->id || $app->isCollaborator($user))) {
+            return redirect()->route('apps.show', [
+                'app' => $app->id,
+                'group_id' => $group->id,
+                'note_id' => $request->query('note_id'),
+            ]);
+        }
+
+        // Selected note inside this group
+        $selectedNoteId = $request->query('note_id');
+        $selectedNote = null;
+        if ($selectedNoteId) {
+            $selectedNote = $group->notes->firstWhere('id', $selectedNoteId);
+        }
+        if (! $selectedNote && $group->notes->isNotEmpty()) {
+            $selectedNote = $group->notes->first();
+        }
+
+        $canEdit = $group->canUserEdit($user);
+        $isCollaborator = $group->isCollaborator($user);
+        $isSaved = $user ? SavedSharedLink::where('user_id', $user->id)->where('item_type', 'group')->where('item_id', $group->id)->exists() : false;
+
+        return Inertia::render('Member/NoteEditor', [
+            'app' => $app,
+            'groups' => collect([$group]),
+            'selected_group' => $group,
+            'selected_note' => $selectedNote,
+            'is_owner' => false,
+            'is_collaborator' => $isCollaborator,
+            'can_edit' => $canEdit,
+            'is_saved' => $isSaved,
+            'is_public_view' => false,
+            'is_group_shared_view' => true,
+            'is_single_note_view' => false,
+            'share_item_type' => 'group',
+            'share_item_id' => $group->id,
+            'share_public_token' => $group->public_token,
+        ]);
+    }
+
+    public function addCollaborator(Request $request, $id)
+    {
+        $user = Auth::user();
+        $group = NoteGroup::with('app')->findOrFail($id);
+
+        if (! $group->canUserEdit($user)) {
+            abort(403, 'Anda tidak memiliki izin mengundang kolaborator ke folder ini.');
+        }
+
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'permission' => 'nullable|in:edit',
+        ]);
+
+        if (strtolower($validated['email']) === strtolower($user->email)) {
+            return back()->with('error', 'Anda tidak dapat mengundang diri sendiri.');
+        }
+
+        $invitedUser = User::where('email', $validated['email'])->first();
+
+        Collaborator::updateOrCreate(
+            [
+                'collaboratable_type' => NoteGroup::class,
+                'collaboratable_id' => $group->id,
+                'invited_email' => strtolower($validated['email']),
+            ],
+            [
+                'user_id' => $invitedUser?->id,
+                'permission' => 'edit',
+            ]
+        );
+
+        if ($invitedUser) {
+            AppNotification::create([
+                'user_id' => $invitedUser->id,
+                'title' => '👥 Undangan Kolaborasi Folder',
+                'message' => $user->name.' mengundang Anda berkolaborasi pada folder "'.$group->name.'".',
+                'type' => 'collaboration',
+                'action_url' => route('groups.show', $group->id),
+                'read_at' => null,
+                'is_archived' => false,
+            ]);
+        }
+
+        ActivityLogger::log('INVITE_COLLABORATOR', "Mengundang {$validated['email']} sebagai kolaborator folder '{$group->name}'", $group);
+
+        return back()->with('success', 'Kolaborator folder ('.$validated['email'].') berhasil ditambahkan!');
+    }
+
+    public function removeCollaborator($id, $collabId)
+    {
+        $user = Auth::user();
+        $group = NoteGroup::with('app')->findOrFail($id);
+
+        if (! $group->canUserEdit($user)) {
+            abort(403, 'Anda tidak memiliki izin menghapus kolaborator.');
+        }
+
+        $collab = Collaborator::where('collaboratable_type', NoteGroup::class)
+            ->where('collaboratable_id', $group->id)
+            ->where('id', $collabId)
+            ->firstOrFail();
+
+        $email = $collab->invited_email;
+        $collab->delete();
+
+        ActivityLogger::log('REMOVE_COLLABORATOR', "Menghapus akses kolaborator {$email} dari folder '{$group->name}'", $group);
+
+        return back()->with('success', 'Kolaborator folder berhasil dihapus.');
     }
 }

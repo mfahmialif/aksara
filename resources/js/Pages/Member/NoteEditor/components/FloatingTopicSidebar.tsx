@@ -6,7 +6,7 @@ import NeoButton from '@/Components/UI/NeoButton';
 import {
     FolderKanban, Plus, Search, ChevronLeft, ChevronRight,
     Edit3, Trash2, Share2, BookOpen, X, Layers, Settings2, Check,
-    GripVertical
+    GripVertical, Users
 } from 'lucide-react';
 
 export interface FloatingTopicSidebarProps {
@@ -25,6 +25,7 @@ export interface FloatingTopicSidebarProps {
     onOpenEditGroup: (group: NoteGroup) => void;
     onDeleteGroup: (groupId: string) => void;
     onOpenShareGroup?: (group: NoteGroup) => void;
+    onOpenCollabGroup?: (group: NoteGroup) => void;
     onReorderGroups?: (reorderedGroups: { id: string; sort_order: number }[]) => void;
     isMinimized: boolean;
     setIsMinimized: (val: boolean) => void;
@@ -59,6 +60,7 @@ export default function FloatingTopicSidebar({
     onOpenEditGroup,
     onDeleteGroup,
     onOpenShareGroup,
+    onOpenCollabGroup,
     onReorderGroups,
     isMinimized,
     setIsMinimized,
@@ -345,8 +347,19 @@ export default function FloatingTopicSidebar({
                                             </div>
 
                                             <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                                                {/* Action Buttons: Share, Edit, Delete (hidden unless hovered so badge is perfectly aligned with Semua Mata Kuliah) */}
+                                                {/* Action Buttons: Share, Collab, Edit, Delete (hidden unless hovered so badge is perfectly aligned with Semua Mata Kuliah) */}
                                                 <div className="hidden group-hover/item:flex items-center gap-0.5 animate-in fade-in duration-100">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onOpenCollabGroup?.(group);
+                                                        }}
+                                                        className="p-1 bg-white hover:bg-[#A388EE] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] text-black cursor-pointer transition-colors"
+                                                        title={`Kolaborator ${topicLabel}`}
+                                                    >
+                                                        <Users className="w-3 h-3 text-black" />
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         onClick={(e) => {
@@ -532,6 +545,17 @@ export default function FloatingTopicSidebar({
                                             </button>
 
                                             <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setMobileDrawerOpen(false);
+                                                        onOpenCollabGroup?.(group);
+                                                    }}
+                                                    className="p-1 bg-white border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                                    title={`Kolaborator ${topicLabel}`}
+                                                >
+                                                    <Users className="w-3.5 h-3.5 text-black" />
+                                                </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => {

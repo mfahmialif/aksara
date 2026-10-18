@@ -127,9 +127,10 @@ class CollaborativeNoteTest extends TestCase
             'permission' => 'edit',
         ]);
 
-        // Doni can access the note
+        // Doni can access the note directly in isolated single note view
         $noteResponse = $this->actingAs($collaborator, 'web')->get("/notes/{$note->id}");
-        $noteResponse->assertRedirect();
+        $noteResponse->assertOk();
+        $noteResponse->assertInertia(fn ($page) => $page->component('Public/PublicNote', false)->where('can_edit', true)->where('is_collaborator', true));
 
         // Doni CANNOT access the parent NoteApp
         $appResponse = $this->actingAs($collaborator, 'web')->get("/app/{$app->id}");
