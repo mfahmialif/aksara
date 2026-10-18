@@ -148,6 +148,9 @@ class PublicController extends Controller
         $canEdit = $app->canUserEdit($user);
         $isSaved = $user ? SavedSharedLink::where('user_id', $user->id)->where('item_type', 'app')->where('item_id', $app->id)->exists() : false;
 
+        $app->loadCount(['clones as active_clones_count']);
+        $app->load(['clonedFrom:id,name,owner_id']);
+
         return Inertia::render('Member/NoteEditor', [
             'app' => $app,
             'groups' => $groups,

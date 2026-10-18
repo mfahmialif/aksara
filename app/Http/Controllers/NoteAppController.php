@@ -7,6 +7,7 @@ use App\Models\AppNotification;
 use App\Models\Collaborator;
 use App\Models\Note;
 use App\Models\NoteApp;
+use App\Models\NoteAttachment;
 use App\Models\NoteGroup;
 use App\Models\SavedSharedLink;
 use App\Models\SystemSetting;
@@ -15,6 +16,7 @@ use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
@@ -107,8 +109,8 @@ class NoteAppController extends Controller
             });
         }
 
-        $apps = $query->with(['owner', 'groups.notes'])
-            ->withCount(['groups'])
+        $apps = $query->with(['owner', 'groups.notes', 'clonedFrom:id,name,owner_id'])
+            ->withCount(['groups', 'clones as active_clones_count'])
             ->withExists(['savedByUsers as is_saved' => function ($q) use ($user) {
                 $q->where('user_id', $user->id);
             }])
@@ -273,6 +275,9 @@ class NoteAppController extends Controller
             ->where('item_type', 'app')
             ->where('item_id', $app->id)
             ->exists();
+
+        $app->loadCount(['clones as active_clones_count']);
+        $app->load(['clonedFrom:id,name,owner_id']);
 
         return Inertia::render('Member/NoteEditor', [
             'app' => $app,
@@ -852,5 +857,497 @@ class NoteAppController extends Controller
         }
 
         return redirect()->route('apps.index')->with('info', "Anda telah menolak pemindahan kepemilikan ruang kerja '{$app->name}'.");
+    }
+
+    /**
+     * Duplicate a workspace and all its topics, notes, checklist, and attachments.
+     */
+    public function duplicate(Request $request, $id)
+    {
+        $user = Auth::user();
+        if (! $user) {
+            abort(401);
+        }
+
+        $sourceApp = NoteApp::with(['groups.notes.attachments'])->findOrFail($id);
+
+        $isOwner = $sourceApp->owner_id === $user->id;
+        $isCollaborator = $sourceApp->isCollaborator($user);
+        $isSaved = SavedSharedLink::where('user_id', $user->id)->where('item_type', 'app')->where('item_id', $sourceApp->id)->exists();
+        if (! $isOwner && ! $isCollaborator && ! $isSaved && ! $sourceApp->is_public) {
+            abort(403, 'Anda tidak memiliki izin untuk menduplikat ruang kerja ini.');
+        }
+
+        $validated = $request->validate([
+            'name' => 'nullable|string|max:100',
+        ]);
+
+        $newName = ! empty($validated['name']) ? trim($validated['name']) : ($sourceApp->name.' - Duplikat');
+
+        $newApp = DB::transaction(function () use ($sourceApp, $user, $newName) {
+            $sourceApp->increment('clone_count');
+
+            $app = NoteApp::create([
+                'owner_id' => $user->id,
+                'cloned_from_id' => $sourceApp->id,
+                'name' => $newName,
+                'icon' => $sourceApp->icon,
+                'color_theme' => $sourceApp->color_theme,
+                'description' => $sourceApp->description,
+                'topic_label' => $sourceApp->topic_label,
+                'is_public' => false,
+            ]);
+
+            foreach ($sourceApp->groups as $group) {
+                $newGroup = NoteGroup::create([
+                    'note_app_id' => $app->id,
+                    'cloned_from_id' => $group->id,
+                    'name' => $group->name,
+                    'color' => $group->color,
+                    'sort_order' => $group->sort_order,
+                    'is_public' => false,
+                ]);
+
+                foreach ($group->notes as $note) {
+                    $newNote = Note::create([
+                        'note_group_id' => $newGroup->id,
+                        'cloned_from_id' => $note->id,
+                        'title' => $note->title,
+                        'category' => $note->category,
+                        'content_json' => $note->content_json,
+                        'drawing_data' => $note->drawing_data,
+                        'deadline_at' => $note->deadline_at,
+                        'reminder_days_before' => $note->reminder_days_before,
+                        'is_pinned' => $note->is_pinned,
+                        'sort_order' => $note->sort_order,
+                        'is_public' => false,
+                    ]);
+
+                    foreach ($note->attachments as $attachment) {
+                        NoteAttachment::create([
+                            'note_id' => $newNote->id,
+                            'file_name' => $attachment->file_name,
+                            'file_path' => $attachment->file_path,
+                            'mime_type' => $attachment->mime_type,
+                            'file_size' => $attachment->file_size,
+                        ]);
+                    }
+                }
+            }
+
+            return $app;
+        });
+
+        ActivityLogger::log('DUPLICATE_WORKSPACE', "Menduplikasi ruang kerja '{$sourceApp->name}' menjadi '{$newApp->name}'", $newApp);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Ruang kerja '{$newApp->name}' berhasil diduplikat!",
+                'app' => $newApp,
+                'redirect' => route('apps.show', $newApp->id),
+            ]);
+        }
+
+        return redirect()->route('apps.show', $newApp->id)->with('success', "Ruang kerja '{$newApp->name}' berhasil diduplikat!");
+    }
+
+    /**
+     * Get active clones list for the master workspace owner.
+     */
+    public function getClones(Request $request, $id)
+    {
+        $user = Auth::user();
+        $app = NoteApp::findOrFail($id);
+
+        if ($app->owner_id !== $user->id) {
+            abort(403, 'Hanya pemilik yang dapat melihat daftar duplikat.');
+        }
+
+        $activeClones = NoteApp::where('cloned_from_id', $app->id)
+            ->with(['owner:id,name,email,avatar'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($clone) => [
+                'id' => $clone->id,
+                'name' => $clone->name,
+                'created_at' => $clone->created_at->translatedFormat('d M Y, H:i'),
+                'owner' => [
+                    'id' => $clone->owner->id,
+                    'name' => $clone->owner->name,
+                    'email' => $clone->owner->email,
+                    'avatar' => $clone->owner->avatar,
+                ],
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'total_clones' => (int) $app->clone_count,
+            'active_count' => $activeClones->count(),
+            'clones' => $activeClones,
+        ]);
+    }
+
+    /**
+     * Get synchronization candidate targets strictly scoped to the current user.
+     */
+    public function getSyncTargets(Request $request, $id)
+    {
+        $user = Auth::user();
+        $app = NoteApp::findOrFail($id);
+
+        $targets = collect();
+
+        // 1. If current app was cloned from a master app
+        if ($app->cloned_from_id) {
+            $master = NoteApp::find($app->cloned_from_id);
+            if ($master && ($master->owner_id === $user->id || $master->is_public || $master->canUserView($user))) {
+                $targets->push([
+                    'id' => $master->id,
+                    'name' => $master->name,
+                    'is_master' => true,
+                    'is_duplicate' => false,
+                    'can_edit' => $master->canUserEdit($user),
+                    'created_at' => $master->created_at->translatedFormat('d M Y, H:i'),
+                    'updated_at' => $master->updated_at->translatedFormat('d M Y, H:i'),
+                ]);
+            }
+
+            // Sibling clones owned by THIS user only
+            $siblings = NoteApp::where('cloned_from_id', $app->cloned_from_id)
+                ->where('owner_id', $user->id)
+                ->where('id', '!=', $app->id)
+                ->orderByDesc('updated_at')
+                ->get();
+
+            foreach ($siblings as $sib) {
+                $targets->push([
+                    'id' => $sib->id,
+                    'name' => $sib->name,
+                    'is_master' => false,
+                    'is_duplicate' => true,
+                    'can_edit' => true,
+                    'created_at' => $sib->created_at->translatedFormat('d M Y, H:i'),
+                    'updated_at' => $sib->updated_at->translatedFormat('d M Y, H:i'),
+                ]);
+            }
+        }
+
+        // 2. Clones of THIS app owned by THIS user only
+        $myClones = NoteApp::where('cloned_from_id', $app->id)
+            ->where('owner_id', $user->id)
+            ->where('id', '!=', $app->id)
+            ->orderByDesc('updated_at')
+            ->get();
+
+        foreach ($myClones as $clone) {
+            if (! $targets->contains('id', $clone->id)) {
+                $targets->push([
+                    'id' => $clone->id,
+                    'name' => $clone->name,
+                    'is_master' => false,
+                    'is_duplicate' => true,
+                    'can_edit' => true,
+                    'created_at' => $clone->created_at->translatedFormat('d M Y, H:i'),
+                    'updated_at' => $clone->updated_at->translatedFormat('d M Y, H:i'),
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'current_app' => [
+                'id' => $app->id,
+                'name' => $app->name,
+                'is_duplicate' => (bool) $app->cloned_from_id,
+            ],
+            'targets' => $targets->values(),
+        ]);
+    }
+
+    /**
+     * Compute note-level diff between source and target workspace.
+     */
+    public function getSyncDiff(Request $request, $id)
+    {
+        $user = Auth::user();
+        $validated = $request->validate([
+            'source_app_id' => 'required|uuid',
+            'target_app_id' => 'required|uuid',
+        ]);
+
+        $sourceApp = NoteApp::with(['groups.notes'])->findOrFail($validated['source_app_id']);
+        $targetApp = NoteApp::with(['groups.notes'])->findOrFail($validated['target_app_id']);
+
+        if (! $sourceApp->canUserView($user)) {
+            abort(403, 'Anda tidak memiliki akses ke ruang kerja sumber.');
+        }
+        if (! $targetApp->canUserEdit($user)) {
+            abort(403, 'Anda tidak memiliki hak edit pada ruang kerja target.');
+        }
+
+        $allSourceNotes = $sourceApp->groups->flatMap(function ($g) {
+            return $g->notes->map(function ($n) use ($g) {
+                $n->group_name = $g->name;
+
+                return $n;
+            });
+        });
+
+        $allTargetNotes = $targetApp->groups->flatMap(function ($g) {
+            return $g->notes->map(function ($n) use ($g) {
+                $n->group_name = $g->name;
+
+                return $n;
+            });
+        });
+
+        $diffItems = [];
+        $matchedTargetIds = [];
+
+        foreach ($allSourceNotes as $sNote) {
+            $twin = $allTargetNotes->first(function ($tNote) use ($sNote) {
+                if ($tNote->cloned_from_id && $tNote->cloned_from_id === $sNote->id) {
+                    return true;
+                }
+                if ($sNote->cloned_from_id && $sNote->cloned_from_id === $tNote->id) {
+                    return true;
+                }
+                if ($sNote->cloned_from_id && $tNote->cloned_from_id && $sNote->cloned_from_id === $tNote->cloned_from_id) {
+                    return true;
+                }
+
+                return mb_strtolower(trim($tNote->group_name)) === mb_strtolower(trim($sNote->group_name))
+                    && mb_strtolower(trim($tNote->title)) === mb_strtolower(trim($sNote->title));
+            });
+
+            $sPreview = '';
+            if (! empty($sNote->content_json)) {
+                $decoded = json_decode($sNote->content_json, true);
+                $html = is_array($decoded) && isset($decoded['html']) ? $decoded['html'] : $sNote->content_json;
+                $sPreview = mb_substr(trim(strip_tags($html)), 0, 100);
+            }
+
+            if (! $twin) {
+                $diffItems[] = [
+                    'source_note_id' => $sNote->id,
+                    'target_note_id' => null,
+                    'group_name' => $sNote->group_name,
+                    'target_group_name' => null,
+                    'source_title' => $sNote->title,
+                    'target_title' => null,
+                    'status' => 'new',
+                    'source_preview' => $sPreview,
+                    'target_preview' => null,
+                    'source_updated_at' => $sNote->updated_at->translatedFormat('d M Y, H:i'),
+                    'target_updated_at' => null,
+                    'default_action' => 'add',
+                ];
+            } else {
+                $matchedTargetIds[] = $twin->id;
+
+                $tPreview = '';
+                if (! empty($twin->content_json)) {
+                    $decoded = json_decode($twin->content_json, true);
+                    $html = is_array($decoded) && isset($decoded['html']) ? $decoded['html'] : $twin->content_json;
+                    $tPreview = mb_substr(trim(strip_tags($html)), 0, 100);
+                }
+
+                $isDiff = (trim($sNote->title) !== trim($twin->title))
+                    || ($sNote->category !== $twin->category)
+                    || (trim((string) $sNote->content_json) !== trim((string) $twin->content_json))
+                    || (trim((string) $sNote->drawing_data) !== trim((string) $twin->drawing_data))
+                    || ($sNote->deadline_at?->toIso8601String() !== $twin->deadline_at?->toIso8601String());
+
+                $diffItems[] = [
+                    'source_note_id' => $sNote->id,
+                    'target_note_id' => $twin->id,
+                    'group_name' => $sNote->group_name,
+                    'target_group_name' => $twin->group_name,
+                    'source_title' => $sNote->title,
+                    'target_title' => $twin->title,
+                    'status' => $isDiff ? 'modified' : 'identical',
+                    'source_preview' => $sPreview,
+                    'target_preview' => $tPreview,
+                    'source_updated_at' => $sNote->updated_at->translatedFormat('d M Y, H:i'),
+                    'target_updated_at' => $twin->updated_at->translatedFormat('d M Y, H:i'),
+                    'default_action' => $isDiff ? 'overwrite' : 'skip',
+                ];
+            }
+        }
+
+        foreach ($allTargetNotes as $tNote) {
+            if (! in_array($tNote->id, $matchedTargetIds, true)) {
+                $tPreview = '';
+                if (! empty($tNote->content_json)) {
+                    $decoded = json_decode($tNote->content_json, true);
+                    $html = is_array($decoded) && isset($decoded['html']) ? $decoded['html'] : $tNote->content_json;
+                    $tPreview = mb_substr(trim(strip_tags($html)), 0, 100);
+                }
+
+                $diffItems[] = [
+                    'source_note_id' => null,
+                    'target_note_id' => $tNote->id,
+                    'group_name' => null,
+                    'target_group_name' => $tNote->group_name,
+                    'source_title' => null,
+                    'target_title' => $tNote->title,
+                    'status' => 'target_only',
+                    'source_preview' => null,
+                    'target_preview' => $tPreview,
+                    'source_updated_at' => null,
+                    'target_updated_at' => $tNote->updated_at->translatedFormat('d M Y, H:i'),
+                    'default_action' => 'skip',
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'source_app' => [
+                'id' => $sourceApp->id,
+                'name' => $sourceApp->name,
+            ],
+            'target_app' => [
+                'id' => $targetApp->id,
+                'name' => $targetApp->name,
+            ],
+            'diff' => $diffItems,
+        ]);
+    }
+
+    /**
+     * Apply sync merge actions to target workspace.
+     */
+    public function applySync(Request $request, $id)
+    {
+        $user = Auth::user();
+        $validated = $request->validate([
+            'source_app_id' => 'required|uuid',
+            'target_app_id' => 'required|uuid',
+            'actions' => 'required|array',
+            'actions.*.source_note_id' => 'nullable|uuid',
+            'actions.*.target_note_id' => 'nullable|uuid',
+            'actions.*.action' => 'required|in:add,overwrite,create_new,skip',
+        ]);
+
+        $sourceApp = NoteApp::with(['groups.notes.attachments'])->findOrFail($validated['source_app_id']);
+        $targetApp = NoteApp::with(['groups.notes'])->findOrFail($validated['target_app_id']);
+
+        if (! $sourceApp->canUserView($user)) {
+            abort(403, 'Akses ruang kerja sumber ditolak.');
+        }
+        if (! $targetApp->canUserEdit($user)) {
+            abort(403, 'Akses edit ruang kerja target ditolak.');
+        }
+
+        $appliedCount = 0;
+
+        DB::transaction(function () use ($validated, $targetApp, &$appliedCount) {
+            foreach ($validated['actions'] as $item) {
+                $action = $item['action'] ?? 'skip';
+                if ($action === 'skip') {
+                    continue;
+                }
+
+                $sNoteId = $item['source_note_id'] ?? null;
+                $tNoteId = $item['target_note_id'] ?? null;
+
+                $srcNote = $sNoteId ? Note::with(['group', 'attachments'])->find($sNoteId) : null;
+                $targetNote = $tNoteId ? Note::find($tNoteId) : null;
+
+                if ($action === 'add' && $srcNote) {
+                    $targetGroup = $targetApp->groups()->where(function ($q) use ($srcNote) {
+                        $q->where('cloned_from_id', $srcNote->note_group_id)
+                            ->orWhere('name', $srcNote->group->name);
+                    })->first();
+
+                    if (! $targetGroup) {
+                        $targetGroup = NoteGroup::create([
+                            'note_app_id' => $targetApp->id,
+                            'cloned_from_id' => $srcNote->note_group_id,
+                            'name' => $srcNote->group->name,
+                            'color' => $srcNote->group->color,
+                            'sort_order' => $srcNote->group->sort_order,
+                        ]);
+                    }
+
+                    $newNote = Note::create([
+                        'note_group_id' => $targetGroup->id,
+                        'cloned_from_id' => $srcNote->id,
+                        'title' => $srcNote->title,
+                        'category' => $srcNote->category,
+                        'content_json' => $srcNote->content_json,
+                        'drawing_data' => $srcNote->drawing_data,
+                        'deadline_at' => $srcNote->deadline_at,
+                        'reminder_days_before' => $srcNote->reminder_days_before,
+                        'is_pinned' => $srcNote->is_pinned,
+                        'sort_order' => $srcNote->sort_order,
+                    ]);
+
+                    foreach ($srcNote->attachments as $att) {
+                        NoteAttachment::create([
+                            'note_id' => $newNote->id,
+                            'file_name' => $att->file_name,
+                            'file_path' => $att->file_path,
+                            'mime_type' => $att->mime_type,
+                            'file_size' => $att->file_size,
+                        ]);
+                    }
+
+                    $appliedCount++;
+                } elseif ($action === 'overwrite' && $targetNote && $srcNote) {
+                    $targetNote->update([
+                        'title' => $srcNote->title,
+                        'category' => $srcNote->category,
+                        'content_json' => $srcNote->content_json,
+                        'drawing_data' => $srcNote->drawing_data,
+                        'deadline_at' => $srcNote->deadline_at,
+                        'reminder_days_before' => $srcNote->reminder_days_before,
+                    ]);
+                    $appliedCount++;
+                } elseif ($action === 'create_new' && $srcNote) {
+                    $targetGroup = $targetApp->groups()->where(function ($q) use ($srcNote) {
+                        $q->where('cloned_from_id', $srcNote->note_group_id)
+                            ->orWhere('name', $srcNote->group->name);
+                    })->first();
+
+                    if (! $targetGroup) {
+                        $targetGroup = NoteGroup::create([
+                            'note_app_id' => $targetApp->id,
+                            'cloned_from_id' => $srcNote->note_group_id,
+                            'name' => $srcNote->group->name,
+                            'color' => $srcNote->group->color,
+                            'sort_order' => $srcNote->group->sort_order,
+                        ]);
+                    }
+
+                    $newNote = Note::create([
+                        'note_group_id' => $targetGroup->id,
+                        'cloned_from_id' => $srcNote->id,
+                        'title' => $srcNote->title.' (Salinan Sync)',
+                        'category' => $srcNote->category,
+                        'content_json' => $srcNote->content_json,
+                        'drawing_data' => $srcNote->drawing_data,
+                        'deadline_at' => $srcNote->deadline_at,
+                        'reminder_days_before' => $srcNote->reminder_days_before,
+                        'is_pinned' => false,
+                        'sort_order' => $srcNote->sort_order,
+                    ]);
+
+                    $appliedCount++;
+                }
+            }
+
+            $targetApp->touch();
+        });
+
+        ActivityLogger::log('SYNC_WORKSPACE', "Menerapkan sinkronisasi dari '{$sourceApp->name}' ke '{$targetApp->name}' ({$appliedCount} catatan diperbarui)", $targetApp);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Sinkronisasi berhasil! {$appliedCount} catatan diperbarui.",
+            'applied_count' => $appliedCount,
+        ]);
     }
 }

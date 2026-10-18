@@ -15,6 +15,7 @@ class NoteGroup extends Model
 
     protected $fillable = [
         'note_app_id',
+        'cloned_from_id',
         'name',
         'color',
         'sort_order',
@@ -36,6 +37,11 @@ class NoteGroup extends Model
     public function app(): BelongsTo
     {
         return $this->belongsTo(NoteApp::class, 'note_app_id');
+    }
+
+    public function clonedFrom(): BelongsTo
+    {
+        return $this->belongsTo(NoteGroup::class, 'cloned_from_id');
     }
 
     public function notes(): HasMany

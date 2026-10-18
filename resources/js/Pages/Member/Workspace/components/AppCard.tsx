@@ -3,16 +3,29 @@ import { usePage, router } from '@inertiajs/react';
 import { NoteApp, PageProps } from '@/types';
 import NeoCard from '@/Components/UI/NeoCard';
 import DebouncedPrefetchLink from '@/Components/DebouncedPrefetchLink';
-import { BookOpen, Globe, Lock, ArrowRight, Users, BookmarkCheck, Trash2, User as UserIcon, Settings } from 'lucide-react';
+import {
+    BookOpen, Globe, Lock, ArrowRight, Users, BookmarkCheck, Trash2,
+    User as UserIcon, Settings, Copy, RefreshCw, GitFork
+} from 'lucide-react';
 import { getCsrfToken } from '@/utils/csrf';
 
 interface AppCardProps {
     app: NoteApp;
     themeBg: string;
     onEdit?: (app: NoteApp) => void;
+    onDuplicate?: (app: NoteApp) => void;
+    onSync?: (app: NoteApp) => void;
+    onViewClones?: (app: NoteApp) => void;
 }
 
-export default function AppCard({ app, themeBg, onEdit }: AppCardProps) {
+export default function AppCard({
+    app,
+    themeBg,
+    onEdit,
+    onDuplicate,
+    onSync,
+    onViewClones,
+}: AppCardProps) {
     const { auth } = usePage<PageProps>().props;
     const isOwner = Boolean(auth?.user?.id && app.owner_id === auth.user.id);
     const isSaved = Boolean(app.is_saved && !isOwner);
@@ -97,6 +110,34 @@ export default function AppCard({ app, themeBg, onEdit }: AppCardProps) {
                                 <Users className="w-3.5 h-3.5 text-black" />
                             </span>
                         )}
+                        {onDuplicate && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onDuplicate(app);
+                                }}
+                                title="Duplikat Ruang Kerja Ini"
+                                className="p-1 bg-white hover:bg-[#69D2E7] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-colors cursor-pointer"
+                            >
+                                <Copy className="w-3.5 h-3.5 text-black" />
+                            </button>
+                        )}
+                        {onSync && (Boolean(app.cloned_from_id) || (app.active_clones_count || 0) > 0) && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onSync(app);
+                                }}
+                                title="Sinkronisasi Perubahan dengan Duplikat / Induk"
+                                className="p-1 bg-white hover:bg-[#A6E3A1] border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-colors cursor-pointer"
+                            >
+                                <RefreshCw className="w-3.5 h-3.5 text-black" />
+                            </button>
+                        )}
                         {(isOwner || isShared) && onEdit && (
                             <button
                                 type="button"
@@ -148,6 +189,30 @@ export default function AppCard({ app, themeBg, onEdit }: AppCardProps) {
                             <span className="px-2 py-0.5 bg-[#7FBC8C] text-black border border-black text-[10px] uppercase font-black">
                                 Link Tersimpan
                             </span>
+                        )}
+                        {Boolean(app.cloned_from_id) && (
+                            <span
+                                className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-black text-[10px] uppercase font-black flex items-center gap-1"
+                                title={`Hasil duplikasi dari: ${app.cloned_from?.name || 'Ruang Kerja Induk'}`}
+                            >
+                                <GitFork className="w-3 h-3 text-amber-800" />
+                                <span>Hasil Duplikat</span>
+                            </span>
+                        )}
+                        {isOwner && (app.clone_count || 0) > 0 && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onViewClones?.(app);
+                                }}
+                                className="px-2 py-0.5 bg-[#E0E7FF] hover:bg-[#c7d2fe] border border-black text-[10px] uppercase font-black flex items-center gap-1 cursor-pointer transition-colors"
+                                title={`Total ${app.clone_count} kali diduplikat (${app.active_clones_count || 0} pengguna aktif saat ini). Klik untuk melihat daftar.`}
+                            >
+                                <GitFork className="w-3 h-3 text-indigo-700" />
+                                <span>{app.clone_count} Duplikat</span>
+                            </button>
                         )}
                         <span className="px-2 py-0.5 bg-[#F4F0EA] border border-black">
                             {app.groups?.length || 0} {app.topic_label || 'Topik'}

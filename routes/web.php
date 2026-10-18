@@ -88,6 +88,13 @@ Route::middleware(['auth:web'])->group(function () {
     Route::post('/app/{app}/collaborators', [NoteAppController::class, 'addCollaborator'])->name('apps.collaborators.store');
     Route::delete('/app/{app}/collaborators/{collabId}', [NoteAppController::class, 'removeCollaborator'])->name('apps.collaborators.destroy');
 
+    // Workspace Duplication, Clones & Sync
+    Route::post('/app/{app}/duplicate', [NoteAppController::class, 'duplicate'])->name('apps.duplicate');
+    Route::get('/app/{app}/clones', [NoteAppController::class, 'getClones'])->name('apps.clones');
+    Route::get('/app/{app}/sync-targets', [NoteAppController::class, 'getSyncTargets'])->name('apps.sync-targets');
+    Route::post('/app/{app}/sync-diff', [NoteAppController::class, 'getSyncDiff'])->name('apps.sync-diff');
+    Route::post('/app/{app}/sync-apply', [NoteAppController::class, 'applySync'])->name('apps.sync-apply');
+
     // Group Collaborators
     Route::post('/groups/{group}/collaborators', [NoteGroupController::class, 'addCollaborator'])->name('groups.collaborators.store');
     Route::delete('/groups/{group}/collaborators/{collabId}', [NoteGroupController::class, 'removeCollaborator'])->name('groups.collaborators.destroy');

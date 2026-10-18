@@ -16,6 +16,7 @@ class Note extends Model
 
     protected $fillable = [
         'note_group_id',
+        'cloned_from_id',
         'title',
         'category',
         'content_json',
@@ -54,6 +55,11 @@ class Note extends Model
     public function group(): BelongsTo
     {
         return $this->belongsTo(NoteGroup::class, 'note_group_id');
+    }
+
+    public function clonedFrom(): BelongsTo
+    {
+        return $this->belongsTo(Note::class, 'cloned_from_id');
     }
 
     public function attachments(): HasMany

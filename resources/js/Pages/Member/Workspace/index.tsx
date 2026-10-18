@@ -8,6 +8,9 @@ import { PageProps, NoteApp } from '@/types';
 import { WorkspacePageProps } from './types';
 import CreateAppModal from './components/CreateAppModal';
 import EditAppModal from '@/Components/Modals/EditAppModal';
+import DuplicateAppModal from '@/Components/Modals/DuplicateAppModal';
+import SyncWorkspaceModal from '@/Components/Modals/SyncWorkspaceModal';
+import ClonesModal from '@/Components/Modals/ClonesModal';
 import AppCard from './components/AppCard';
 import StandaloneGroupsSection from './components/StandaloneGroupsSection';
 import StandaloneNotesSection from './components/StandaloneNotesSection';
@@ -26,6 +29,9 @@ export default function WorkspaceIndex({
     const { auth } = usePage<PageProps>().props;
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [editingApp, setEditingApp] = useState<NoteApp | null>(null);
+    const [duplicatingApp, setDuplicatingApp] = useState<NoteApp | null>(null);
+    const [syncingApp, setSyncingApp] = useState<NoteApp | null>(null);
+    const [clonesApp, setClonesApp] = useState<NoteApp | null>(null);
     const [searchQuery, setSearchQuery] = useState(filters?.search || '');
     const [activeType, setActiveType] = useState<'all' | 'my_apps' | 'shared' | 'saved'>(filters?.type || 'all');
 
@@ -303,6 +309,9 @@ export default function WorkspaceIndex({
                                 app={app}
                                 themeBg={themeColors[app.color_theme] || themeColors.yellow}
                                 onEdit={(targetApp) => setEditingApp(targetApp)}
+                                onDuplicate={(targetApp) => setDuplicatingApp(targetApp)}
+                                onSync={(targetApp) => setSyncingApp(targetApp)}
+                                onViewClones={(targetApp) => setClonesApp(targetApp)}
                             />
                         ))}
                     </div>
@@ -385,6 +394,41 @@ export default function WorkspaceIndex({
                     onUpdated={() => {
                         router.reload({ only: ['apps', 'counts'] });
                     }}
+                />
+            )}
+
+            {/* DUPLICATE APP MODAL */}
+            {duplicatingApp && (
+                <DuplicateAppModal
+                    isOpen={Boolean(duplicatingApp)}
+                    onClose={() => setDuplicatingApp(null)}
+                    app={duplicatingApp}
+                    onSuccess={() => {
+                        setDuplicatingApp(null);
+                        router.reload({ only: ['apps', 'counts'] });
+                    }}
+                />
+            )}
+
+            {/* SYNC WORKSPACE MODAL */}
+            {syncingApp && (
+                <SyncWorkspaceModal
+                    isOpen={Boolean(syncingApp)}
+                    onClose={() => setSyncingApp(null)}
+                    currentApp={syncingApp}
+                    onSuccess={() => {
+                        setSyncingApp(null);
+                        router.reload({ only: ['apps', 'counts'] });
+                    }}
+                />
+            )}
+
+            {/* CLONES LIST MODAL */}
+            {clonesApp && (
+                <ClonesModal
+                    isOpen={Boolean(clonesApp)}
+                    onClose={() => setClonesApp(null)}
+                    app={clonesApp}
                 />
             )}
         </MemberLayout>

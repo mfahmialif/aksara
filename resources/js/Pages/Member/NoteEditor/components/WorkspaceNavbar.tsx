@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { NoteApp, NoteGroup, PageProps } from '@/types';
 import {
-    ArrowLeft, Users, Share2, FolderKanban, Bookmark, BookmarkCheck, Settings
+    ArrowLeft, Users, Share2, FolderKanban, Bookmark, BookmarkCheck, Settings,
+    Copy, RefreshCw, GitFork
 } from 'lucide-react';
 import { getCsrfToken } from '@/utils/csrf';
 
@@ -32,6 +33,9 @@ export interface WorkspaceNavbarProps {
     onToggleTopicSidebar?: () => void;
     isTopicSidebarMinimized?: boolean;
     topicLabel?: string;
+    onOpenDuplicate?: () => void;
+    onOpenSync?: () => void;
+    onOpenClones?: () => void;
 }
 
 export default function WorkspaceNavbar({
@@ -60,6 +64,9 @@ export default function WorkspaceNavbar({
     onToggleTopicSidebar,
     isTopicSidebarMinimized = false,
     topicLabel = 'Topik',
+    onOpenDuplicate,
+    onOpenSync,
+    onOpenClones,
 }: WorkspaceNavbarProps) {
     const { auth } = usePage<PageProps>().props;
     const user = auth?.user;
@@ -222,6 +229,42 @@ export default function WorkspaceNavbar({
                         >
                             <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
                             <span className="hidden sm:inline">Pengaturan</span>
+                        </button>
+                    )}
+
+                    {!isGroupSharedView && onOpenDuplicate && (
+                        <button
+                            type="button"
+                            onClick={onOpenDuplicate}
+                            className="h-8 sm:h-9 px-2 sm:px-2.5 bg-white hover:bg-[#69D2E7] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-black cursor-pointer transition-all flex items-center gap-1.5 text-xs font-heading font-black uppercase"
+                            title="Duplikat Ruang Kerja Ini"
+                        >
+                            <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                            <span className="hidden lg:inline">Duplikat</span>
+                        </button>
+                    )}
+
+                    {!isGroupSharedView && onOpenSync && (Boolean(app.cloned_from_id) || (app.active_clones_count || 0) > 0) && (
+                        <button
+                            type="button"
+                            onClick={onOpenSync}
+                            className="h-8 sm:h-9 px-2 sm:px-2.5 bg-white hover:bg-[#A6E3A1] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-black cursor-pointer transition-all flex items-center gap-1.5 text-xs font-heading font-black uppercase"
+                            title="Sinkronisasi Perubahan dengan Duplikat / Induk"
+                        >
+                            <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                            <span className="hidden lg:inline">Sinkron</span>
+                        </button>
+                    )}
+
+                    {!isGroupSharedView && isOwner && (app.clone_count || 0) > 0 && onOpenClones && (
+                        <button
+                            type="button"
+                            onClick={onOpenClones}
+                            className="h-8 sm:h-9 px-2 sm:px-2.5 bg-[#E0E7FF] hover:bg-[#c7d2fe] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-black cursor-pointer transition-all flex items-center gap-1.5 text-xs font-heading font-black uppercase"
+                            title={`Total ${app.clone_count} kali diduplikat (${app.active_clones_count || 0} pengguna aktif)`}
+                        >
+                            <GitFork className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-700" />
+                            <span className="hidden md:inline">{app.clone_count} Duplikat</span>
                         </button>
                     )}
 

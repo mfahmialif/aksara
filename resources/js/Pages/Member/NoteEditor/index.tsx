@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { router, usePage } from '@inertiajs/react';
-import { Note, PageProps, NoteGroup } from '@/types';
+import { Note, PageProps, NoteGroup, NoteApp } from '@/types';
 import MemberLayout from '@/Layouts/MemberLayout';
 import CollaboratorsModal from '@/Components/Modals/CollaboratorsModal';
 import ShareModal from '@/Components/Modals/ShareModal';
 import EditAppModal from '@/Components/Modals/EditAppModal';
+import DuplicateAppModal from '@/Components/Modals/DuplicateAppModal';
+import SyncWorkspaceModal from '@/Components/Modals/SyncWorkspaceModal';
+import ClonesModal from '@/Components/Modals/ClonesModal';
 import { NoteEditorProps } from './types';
 import WorkspaceNavbar from './components/WorkspaceNavbar';
 import FloatingTopicSidebar from './components/FloatingTopicSidebar';
@@ -169,6 +172,9 @@ export default function NoteEditor({
     const [appShareOpen, setAppShareOpen] = useState(false);
     const [noteCollabOpen, setNoteCollabOpen] = useState(false);
     const [noteShareOpen, setNoteShareOpen] = useState(false);
+    const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+    const [syncModalOpen, setSyncModalOpen] = useState(false);
+    const [clonesModalOpen, setClonesModalOpen] = useState(false);
     const [folderModalState, setFolderModalState] = useState<{
         isOpen: boolean;
         mode: 'create' | 'edit';
@@ -630,6 +636,9 @@ export default function NoteEditor({
                     setAppShareOpen(true);
                 }
             }}
+            onOpenDuplicate={() => setDuplicateModalOpen(true)}
+            onOpenSync={() => setSyncModalOpen(true)}
+            onOpenClones={() => setClonesModalOpen(true)}
             onOpenShareGroup={handleOpenShareGroup}
             onOpenAddGroup={handleOpenAddGroup}
             onOpenEditGroup={handleOpenEditGroup}
@@ -909,6 +918,32 @@ export default function NoteEditor({
                     targetId={groupCollabModalState.group.id}
                     title={groupCollabModalState.group.name}
                     collaborators={groupCollabModalState.group.collaborators || []}
+                />
+            )}
+
+            {/* Duplicate App Modal */}
+            <DuplicateAppModal
+                isOpen={duplicateModalOpen}
+                onClose={() => setDuplicateModalOpen(false)}
+                app={localApp}
+            />
+
+            {/* Sync Workspace Modal */}
+            <SyncWorkspaceModal
+                isOpen={syncModalOpen}
+                onClose={() => setSyncModalOpen(false)}
+                currentApp={localApp}
+                onSuccess={() => {
+                    router.reload();
+                }}
+            />
+
+            {/* Clones / Duplicates List Modal */}
+            {is_owner && (
+                <ClonesModal
+                    isOpen={clonesModalOpen}
+                    onClose={() => setClonesModalOpen(false)}
+                    app={localApp}
                 />
             )}
         </MemberLayout>

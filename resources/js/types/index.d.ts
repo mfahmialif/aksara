@@ -34,6 +34,9 @@ export interface SystemSettings {
 export interface NoteApp {
     id: string;
     owner_id: string;
+    cloned_from_id?: string | null;
+    clone_count?: number;
+    active_clones_count?: number;
     name: string;
     icon?: string;
     color_theme: string;
@@ -49,6 +52,7 @@ export interface NoteApp {
     collaborators?: Collaborator[];
     groups_count?: number;
     is_saved?: boolean;
+    cloned_from?: NoteApp | null;
 }
 
 export interface SavedSharedLink {
@@ -68,6 +72,7 @@ export interface SavedSharedLink {
 export interface NoteGroup {
     id: string;
     note_app_id: string;
+    cloned_from_id?: string | null;
     name: string;
     color?: string;
     sort_order: number;
@@ -124,6 +129,7 @@ export interface Collaborator {
 export interface Note {
     id: string;
     note_group_id: string;
+    cloned_from_id?: string | null;
     title: string;
     category: 'regular' | 'task';
     content_json?: string | null;
@@ -141,6 +147,42 @@ export interface Note {
     group?: NoteGroup;
     attachments?: NoteAttachment[];
     collaborators?: Collaborator[];
+}
+
+export interface ActiveCloneItem {
+    id: string;
+    name: string;
+    created_at: string;
+    owner: {
+        id: string;
+        name: string;
+        avatar?: string | null;
+        email: string;
+    };
+}
+
+export interface SyncTargetApp {
+    id: string;
+    name: string;
+    is_master: boolean;
+    is_duplicate: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SyncDiffItem {
+    source_note_id: string;
+    target_note_id?: string | null;
+    group_name: string;
+    target_group_name?: string | null;
+    source_title: string;
+    target_title?: string | null;
+    status: 'new' | 'modified' | 'identical' | 'target_only';
+    source_preview?: string;
+    target_preview?: string;
+    source_updated_at?: string;
+    target_updated_at?: string;
+    default_action: 'add' | 'overwrite' | 'create_new' | 'skip';
 }
 
 export interface AppNotification {

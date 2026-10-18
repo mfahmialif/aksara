@@ -17,9 +17,11 @@ class NoteApp extends Model
 
     protected $fillable = [
         'owner_id',
+        'cloned_from_id',
         'name',
         'icon',
         'color_theme',
+        'clone_count',
         'description',
         'is_public',
         'public_token',
@@ -29,6 +31,7 @@ class NoteApp extends Model
 
     protected $casts = [
         'is_public' => 'boolean',
+        'clone_count' => 'integer',
     ];
 
     public function getTopicLabelAttribute($value): string
@@ -51,6 +54,16 @@ class NoteApp extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function clonedFrom(): BelongsTo
+    {
+        return $this->belongsTo(NoteApp::class, 'cloned_from_id');
+    }
+
+    public function clones(): HasMany
+    {
+        return $this->hasMany(NoteApp::class, 'cloned_from_id');
     }
 
     public function groups(): HasMany
