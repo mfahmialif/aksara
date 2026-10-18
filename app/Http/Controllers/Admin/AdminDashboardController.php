@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class AdminDashboardController extends Controller
@@ -302,15 +303,125 @@ class AdminDashboardController extends Controller
         }
     }
 
-    public function users()
+    public function users(Request $request)
     {
-        $members = User::withCount('noteApps')->orderBy('id', 'desc')->get();
+        $query = User::withCount('noteApps');
+
+        // Search by name, email, or google_id
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('google_id', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by status (all, active, inactive)
+        if ($request->filled('status') && in_array($request->status, ['active', 'inactive'], true)) {
+            $query->where('is_active', $request->status === 'active');
+        }
+
+        // Sorting
+        $sort = $request->input('sort', 'latest');
+        match ($sort) {
+            'oldest' => $query->orderBy('created_at', 'asc'),
+            'name_asc' => $query->orderBy('name', 'asc'),
+            'name_desc' => $query->orderBy('name', 'desc'),
+            'most_workspaces' => $query->orderBy('note_apps_count', 'desc')->orderBy('created_at', 'desc'),
+            default => $query->orderBy('created_at', 'desc'),
+        };
+
+        $members = $query->paginate(15)->withQueryString();
         $admins = Admin::orderBy('id', 'desc')->get();
+
+        $stats = [
+            'total_members' => User::count(),
+            'active_members' => User::where('is_active', true)->count(),
+            'inactive_members' => User::where('is_active', false)->count(),
+        ];
 
         return Inertia::render('Admin/Users', [
             'members' => $members,
             'admins' => $admins,
+            'stats' => $stats,
+            'filters' => [
+                'search' => $request->search ?? '',
+                'status' => $request->status ?? 'all',
+                'sort' => $sort,
+            ],
         ]);
+    }
+
+    public function getUserDetails($id)
+    {
+        $user = User::withCount(['noteApps', 'collaborations', 'savedSharedLinks'])
+            ->with(['noteApps' => function ($q) {
+                $q->withCount('groups')->orderBy('created_at', 'desc')->limit(10);
+            }])
+            ->findOrFail($id);
+
+        $recentLogs = ActivityLog::where(function ($q) use ($user) {
+            $q->where(function ($sub) use ($user) {
+                $sub->where('causer_type', User::class)
+                    ->where('causer_id', $user->id);
+            })->orWhere(function ($sub) use ($user) {
+                $sub->where('entity_type', User::class)
+                    ->where('entity_id', $user->id);
+            });
+        })
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get();
+
+        return response()->json([
+            'user' => $user,
+            'recent_logs' => $recentLogs,
+        ]);
+    }
+
+    public function updateUser(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
+            'is_active' => 'required|boolean',
+            'default_reminder_days' => 'required|integer|min:0|max:30',
+        ]);
+
+        $user->update($validated);
+
+        ActivityLogger::log('UPDATE_USER', "Memperbarui data profil pengguna {$user->name} ({$user->email}) oleh Administrator", $user, $validated);
+
+        return back()->with('success', "Data pengguna {$user->name} berhasil diperbarui.");
+    }
+
+    public function deleteUser($id)
+    {
+        $user = User::findOrFail($id);
+        $name = $user->name;
+        $email = $user->email;
+
+        // Clean up physical files of user's notes attachments
+        $workspaceIds = NoteApp::where('owner_id', $user->id)->pluck('id');
+        $noteIds = Note::whereHas('group', function ($q) use ($workspaceIds) {
+            $q->whereIn('note_app_id', $workspaceIds);
+        })->pluck('id');
+
+        $attachments = NoteAttachment::whereIn('note_id', $noteIds)->get();
+        foreach ($attachments as $attachment) {
+            if ($attachment->file_path && Storage::disk('public')->exists($attachment->file_path)) {
+                Storage::disk('public')->delete($attachment->file_path);
+            }
+        }
+
+        $user->delete();
+
+        ActivityLogger::log('DELETE_USER', "Menghapus akun pengguna {$name} ({$email}) beserta seluruh data ruang kerja oleh Administrator", null);
+
+        return back()->with('success', "Pengguna {$name} dan seluruh data terkait berhasil dihapus.");
     }
 
     public function toggleUserStatus($id)

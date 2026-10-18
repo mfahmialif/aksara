@@ -139,6 +139,9 @@ Route::prefix('admin')->group(function () {
         Route::post('/settings/test-reminder', [AdminDashboardController::class, 'testReminder'])->name('admin.settings.test-reminder');
         Route::post('/settings/run-reminders', [AdminDashboardController::class, 'runReminders'])->name('admin.settings.run-reminders');
         Route::get('/users', [AdminDashboardController::class, 'users'])->name('admin.users');
+        Route::get('/users/{id}/details', [AdminDashboardController::class, 'getUserDetails'])->name('admin.users.details');
+        Route::put('/users/{id}', [AdminDashboardController::class, 'updateUser'])->name('admin.users.update');
+        Route::delete('/users/{id}', [AdminDashboardController::class, 'deleteUser'])->name('admin.users.destroy');
         Route::post('/users/{id}/toggle-status', [AdminDashboardController::class, 'toggleUserStatus'])->name('admin.users.toggle');
         Route::post('/admins', [AdminDashboardController::class, 'createAdmin'])->name('admin.admins.store');
         Route::get('/reminders', [AdminDashboardController::class, 'reminders'])->name('admin.reminders');
