@@ -51,6 +51,26 @@ export default function PublicNote({
         };
     }, [previewImage, previewPdf]);
 
+    useEffect(() => {
+        const handlePopState = () => {
+            if (previewImage) {
+                setPreviewImage(null);
+                return;
+            }
+            if (previewPdf) {
+                setPreviewPdf(null);
+                return;
+            }
+            if (isEditModalOpen) {
+                setIsEditModalOpen(false);
+                return;
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [previewImage, previewPdf, isEditModalOpen]);
+
     const handleToggleSave = async () => {
         if (!user) {
             router.visit(route('login'));
@@ -242,10 +262,28 @@ export default function PublicNote({
                     drawing={drawing}
                     userReminder={user_reminder}
                     canEdit={can_edit}
-                    onPreviewImage={setPreviewImage}
-                    onPreviewPdf={setPreviewPdf}
+                    onPreviewImage={(img) => {
+                        setPreviewImage(img);
+                        if (img && typeof window !== 'undefined') {
+                            const currentState = window.history.state || {};
+                            window.history.pushState({ ...currentState, aksaraModal: 'preview-image' }, '');
+                        }
+                    }}
+                    onPreviewPdf={(pdf) => {
+                        setPreviewPdf(pdf);
+                        if (pdf && typeof window !== 'undefined') {
+                            const currentState = window.history.state || {};
+                            window.history.pushState({ ...currentState, aksaraModal: 'preview-pdf' }, '');
+                        }
+                    }}
                     onToggleChecklist={handleToggleChecklist}
-                    onOpenEdit={() => setIsEditModalOpen(true)}
+                    onOpenEdit={() => {
+                        setIsEditModalOpen(true);
+                        if (typeof window !== 'undefined') {
+                            const currentState = window.history.state || {};
+                            window.history.pushState({ ...currentState, aksaraModal: 'public-edit' }, '');
+                        }
+                    }}
                 />
             </div>
 
@@ -254,7 +292,12 @@ export default function PublicNote({
                 <KeepNoteModal
                     note={localNote}
                     isOpen={isEditModalOpen}
-                    onClose={() => setIsEditModalOpen(false)}
+                    onClose={() => {
+                        setIsEditModalOpen(false);
+                        if (typeof window !== 'undefined' && window.history.state?.aksaraModal === 'public-edit') {
+                            window.history.back();
+                        }
+                    }}
                     groups={resolvedGroups}
                     canEdit={can_edit}
                     user={user}

@@ -10,7 +10,7 @@ import PersonalNoteReminder from '@/Components/PersonalNoteReminder';
 import {
     X, Check, AlertCircle, Users, Share2, Trash2,
     FileText, CheckSquare, PenTool, Paperclip, Clock,
-    Folder, Maximize2, Minimize2, Pin, Copy
+    Folder, Maximize2, Minimize2, Pin, Copy, FolderInput
 } from 'lucide-react';
 import { lockBodyScroll, unlockBodyScroll } from '@/utils/modalScrollLock';
 
@@ -83,6 +83,30 @@ export default function KeepNoteModal({
     const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
     const isDirtyRef = useRef(false);
 
+    // Folder Switcher State
+    const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
+    const folderPickerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isFolderPickerOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
+                setIsFolderPickerOpen(false);
+            }
+        };
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setIsFolderPickerOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isFolderPickerOpen]);
+
     // Parse note content on mount / when note changes or modal opens
     useEffect(() => {
         if (!isOpen || !note) return;
@@ -129,6 +153,7 @@ export default function KeepNoteModal({
         setNoteType(initialFormat);
         setShowAttachments(false);
         setAutoSaveStatus('idle');
+        setIsFolderPickerOpen(false);
         isDirtyRef.current = false;
     }, [note?.id, isOpen]);
 
@@ -197,6 +222,7 @@ export default function KeepNoteModal({
         });
 
         const payload = {
+            note_group_id: activeNote.note_group_id,
             title: currentVals.title.trim() || 'Catatan Tanpa Judul',
             category: currentVals.category,
             is_pinned: currentVals.isPinned,
@@ -268,6 +294,7 @@ export default function KeepNoteModal({
 
     // Close handler
     const handleCloseModal = async () => {
+        setIsFolderPickerOpen(false);
         if (autoSaveTimerRef.current) {
             clearTimeout(autoSaveTimerRef.current);
         }
@@ -284,7 +311,7 @@ export default function KeepNoteModal({
         handleCloseModalRef.current = handleCloseModal;
     });
 
-    // Close on Escape & Lock body scroll
+    // Close on Escape & Lock body scroll & popstate auto-save
     useEffect(() => {
         if (!isOpen) return;
 
@@ -297,9 +324,17 @@ export default function KeepNoteModal({
         };
         window.addEventListener('keydown', handleKeyDown);
 
+        const handlePopState = () => {
+            if (isDirtyRef.current) {
+                persistChanges(true);
+            }
+        };
+        window.addEventListener('popstate', handlePopState);
+
         return () => {
             unlockBodyScroll();
             window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('popstate', handlePopState);
         };
     }, [isOpen]);
 
@@ -360,9 +395,9 @@ export default function KeepNoteModal({
     const matchedGroup = groups.find((g) => String(g.id) === String(activeNote.note_group_id)) || activeNote.group;
     const resolvedTopicLabel = topicLabel || matchedGroup?.app?.topic_label || 'Topik';
     const groupName =
-        activeNote.group?.name ||
-        matchedGroup?.name ||
         groups.find((g) => String(g.id) === String(activeNote.note_group_id))?.name ||
+        matchedGroup?.name ||
+        activeNote.group?.name ||
         'Grup';
 
     const attachmentsCount = activeNote.attachments?.length || 0;
@@ -391,6 +426,78 @@ export default function KeepNoteModal({
     }
     const hasDrawing = drawingStrokesCount > 0;
 
+    const handleSelectFolder = async (targetGroupId: string) => {
+        if (!activeNote || String(activeNote.note_group_id) === String(targetGroupId)) {
+            setIsFolderPickerOpen(false);
+            return;
+        }
+
+        setIsFolderPickerOpen(false);
+
+        // For new draft note that hasn't been saved to server yet
+        if (isNewNote) {
+            setActiveNote((prev) => (prev ? { ...prev, note_group_id: targetGroupId } : null));
+            return;
+        }
+
+        // Optimistic update
+        setActiveNote((prev) => (prev ? { ...prev, note_group_id: targetGroupId } : null));
+        setAutoSaveStatus('saving');
+
+        try {
+            const csrfToken = getCsrfToken();
+            const currentVals = { ...formRef.current };
+            const contentJson = JSON.stringify({
+                type: currentVals.noteType,
+                html: currentVals.htmlContent,
+                checklist: currentVals.checklist,
+            });
+
+            const payload = {
+                note_group_id: targetGroupId,
+                title: currentVals.title.trim() || 'Catatan Tanpa Judul',
+                category: currentVals.category,
+                is_pinned: currentVals.isPinned,
+                content_json: contentJson,
+                drawing_data: currentVals.drawingData,
+                deadline_at: currentVals.category === 'task' && currentVals.deadline ? currentVals.deadline : null,
+                reminder_days_before: currentVals.category === 'task' ? currentVals.reminderDays : 0,
+            };
+
+            const res = await fetch(`/notes/${activeNote.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setAutoSaveStatus('saved');
+                setLastSavedTime(
+                    new Date().toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                    })
+                );
+                isDirtyRef.current = false;
+                if (data.note) {
+                    setActiveNote(data.note);
+                    if (onNoteUpdated) onNoteUpdated(data.note);
+                }
+            } else {
+                setAutoSaveStatus('error');
+            }
+        } catch {
+            setAutoSaveStatus('error');
+        }
+    };
+
     return (
         <div
             className={`fixed inset-0 z-50 flex overscroll-contain animate-in fade-in duration-150 ${
@@ -416,166 +523,249 @@ export default function KeepNoteModal({
 
                 {/* Header Bar: Group Info, Actions, Aktifkan Deadline, Simpan */}
                 <div className="p-2.5 sm:p-4 border-b-2 border-black bg-[#FFFDF8] shrink-0 space-y-2 select-none">
-                    {/* Row 1: Group Name/Select (Left) & Actions + Close (Right) */}
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1 select-text">
-                            <Folder className="w-3.5 h-3.5 text-black shrink-0" />
-                            <span className="text-[11px] sm:text-xs font-bold text-neutral-600 uppercase shrink-0 select-text cursor-default">
-                                {resolvedTopicLabel}:
-                            </span>
-                            {isNewNote ? (
-                                <select
-                                    value={activeNote.note_group_id}
-                                    onChange={(e) =>
-                                        setActiveNote((prev) => ({
-                                            ...prev,
-                                            note_group_id: Number(e.target.value),
-                                        }))
-                                    }
-                                    className="text-[11px] sm:text-xs font-heading font-black uppercase bg-white border border-black px-1.5 py-0.5 focus:outline-none cursor-pointer max-w-[130px] sm:max-w-none truncate"
-                                >
-                                    {groups.map((g) => (
-                                        <option key={g.id} value={g.id}>
-                                            {g.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <span
-                                    className="text-black font-black text-xs uppercase truncate max-w-[140px] sm:max-w-none select-text cursor-text selection:bg-[#FFE57F] selection:text-black"
-                                    title={groupName}
-                                >
-                                    {groupName}
+                    {/* Responsive Header Row(s): Mobile stacks 2 rows (folder on top, actions below); Desktop keeps 1 row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        {/* Mobile Top Row / Desktop Left: Folder Topic Name + Salin + Pindah/Ganti */}
+                        <div className="flex items-center justify-between gap-2 min-w-0 w-full sm:w-auto">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1 select-text">
+                                <Folder className="w-3.5 h-3.5 text-black shrink-0" />
+                                <span className="text-[11px] sm:text-xs font-bold text-neutral-600 uppercase shrink-0 select-text cursor-default">
+                                    {resolvedTopicLabel}:
                                 </span>
-                            )}
+                                {isNewNote ? (
+                                    <select
+                                        value={activeNote.note_group_id}
+                                        onChange={(e) =>
+                                            setActiveNote((prev) => ({
+                                                ...prev,
+                                                note_group_id: e.target.value,
+                                            }))
+                                        }
+                                        className="text-[11px] sm:text-xs font-heading font-black uppercase bg-white border border-black px-1.5 py-0.5 focus:outline-none cursor-pointer max-w-[140px] sm:max-w-none truncate"
+                                    >
+                                        {groups.map((g) => (
+                                            <option key={g.id} value={g.id}>
+                                                {g.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <span
+                                        className="text-black font-black text-xs uppercase truncate max-w-[180px] sm:max-w-none select-text cursor-text selection:bg-[#FFE57F] selection:text-black"
+                                        title={groupName}
+                                    >
+                                        {groupName}
+                                    </span>
+                                )}
+                            </div>
 
-                            {!isNewNote && groupName && (
-                                <button
-                                    type="button"
-                                    onClick={handleCopyGroupName}
-                                    className={`px-1.5 py-0.5 border border-black transition-all shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 shrink-0 cursor-pointer flex items-center gap-1 ${
-                                        hasCopiedGroupName
-                                            ? 'bg-[#A6E3A1] text-black font-bold'
-                                            : 'bg-white hover:bg-[#FFDC58] text-black'
-                                    }`}
-                                    title={hasCopiedGroupName ? 'Nama tersalin!' : `Salin nama ${resolvedTopicLabel.toLowerCase()}`}
-                                    aria-label={`Salin nama ${resolvedTopicLabel.toLowerCase()}`}
-                                >
-                                    {hasCopiedGroupName ? (
-                                        <>
-                                            <Check className="w-3 h-3 text-black stroke-[3]" />
+                            {/* Folder Action Buttons: Salin & Pindah (Placed right next to each other!) */}
+                            <div className="flex items-center gap-1 shrink-0">
+                                {!isNewNote && groupName && (
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyGroupName}
+                                        className={`px-1.5 py-0.5 border border-black transition-all shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 shrink-0 cursor-pointer flex items-center gap-1 ${
+                                            hasCopiedGroupName
+                                                ? 'bg-[#A6E3A1] text-black font-bold'
+                                                : 'bg-white hover:bg-[#FFDC58] text-black'
+                                        }`}
+                                        title={hasCopiedGroupName ? 'Nama tersalin!' : `Salin nama ${resolvedTopicLabel.toLowerCase()}`}
+                                        aria-label={`Salin nama ${resolvedTopicLabel.toLowerCase()}`}
+                                    >
+                                        {hasCopiedGroupName ? (
+                                            <>
+                                                <Check className="w-3 h-3 text-black stroke-[3]" />
+                                                <span className="text-[10px] font-black uppercase font-heading hidden sm:inline">
+                                                    Tersalin
+                                                </span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy className="w-3 h-3 text-black" />
+                                                <span className="text-[10px] font-black uppercase font-heading hidden sm:inline">
+                                                    Salin
+                                                </span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+
+                                {canEdit && groups && groups.length > 0 && (
+                                    <div className="relative" ref={folderPickerRef}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsFolderPickerOpen((prev) => !prev)}
+                                            className={`px-1.5 py-0.5 border border-black transition-all shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 shrink-0 cursor-pointer flex items-center gap-1 ${
+                                                isFolderPickerOpen
+                                                    ? 'bg-[#FFDC58] text-black font-bold'
+                                                    : 'bg-white hover:bg-[#FFDC58] text-black'
+                                            }`}
+                                            title={`Pindah atau ganti ${resolvedTopicLabel.toLowerCase()}`}
+                                            aria-label={`Pindah atau ganti ${resolvedTopicLabel.toLowerCase()}`}
+                                        >
+                                            <FolderInput className="w-3 h-3 text-black" />
                                             <span className="text-[10px] font-black uppercase font-heading hidden sm:inline">
-                                                Tersalin
+                                                Pindah
                                             </span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy className="w-3 h-3 text-black" />
-                                            <span className="text-[10px] font-black uppercase font-heading hidden sm:inline">
-                                                Salin
-                                            </span>
-                                        </>
-                                    )}
-                                </button>
-                            )}
+                                        </button>
+
+                                        {/* Dropdown Menu for selecting new folder */}
+                                        {isFolderPickerOpen && (
+                                            <div className="absolute right-0 sm:left-0 sm:right-auto mt-1 w-60 sm:w-64 bg-white border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] z-50 p-2 animate-in fade-in zoom-in-95 duration-100">
+                                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-black">
+                                                    <div className="flex items-center gap-1.5 text-[11px] font-black uppercase font-heading text-black">
+                                                        <Folder className="w-3.5 h-3.5" />
+                                                        <span>Pindah {resolvedTopicLabel}</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsFolderPickerOpen(false)}
+                                                        className="p-0.5 hover:bg-neutral-100 text-black border border-transparent hover:border-black cursor-pointer"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="max-h-48 overflow-y-auto space-y-1 pr-0.5">
+                                                    {groups.map((g) => {
+                                                        const isSelected = String(g.id) === String(activeNote.note_group_id);
+                                                        return (
+                                                            <button
+                                                                key={g.id}
+                                                                type="button"
+                                                                onClick={() => handleSelectFolder(g.id)}
+                                                                className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 text-left border transition-all text-xs cursor-pointer ${
+                                                                    isSelected
+                                                                        ? 'bg-[#FFDC58] border-black font-black text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                                                                        : 'bg-white hover:bg-neutral-100 border-transparent hover:border-black text-neutral-800'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                                    <span
+                                                                        className="w-2.5 h-2.5 rounded-full border border-black shrink-0"
+                                                                        style={{ backgroundColor: g.color || '#FFDC58' }}
+                                                                    />
+                                                                    <span className="truncate uppercase font-heading font-bold text-[11px]">
+                                                                        {g.name}
+                                                                    </span>
+                                                                </div>
+                                                                {isSelected && (
+                                                                    <Check className="w-3.5 h-3.5 text-black stroke-[3] shrink-0" />
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
+                        {/* Mobile Lower Row / Desktop Right: Auto-Save Status (Left on mobile) & Action Buttons (Right) */}
+                        <div className="flex items-center justify-between sm:justify-end gap-1 w-full sm:w-auto pt-1.5 sm:pt-0 border-t border-neutral-200/60 sm:border-t-0 shrink-0">
                             {/* Auto-Save Indicator */}
-                            {autoSaveStatus === 'saving' && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase bg-amber-100 text-amber-900 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                    <span className="hidden xs:inline">Menyimpan...</span>
-                                </span>
-                            )}
+                            <div className="flex items-center">
+                                {autoSaveStatus === 'saving' && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase bg-amber-100 text-amber-900 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                        <span>Menyimpan...</span>
+                                    </span>
+                                )}
 
-                            {autoSaveStatus === 'saved' && (
-                                <span
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase bg-[#D4FF32] text-black border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
-                                    title={lastSavedTime ? `Tersimpan ${lastSavedTime}` : ''}
-                                >
-                                    <Check className="w-3 h-3 text-black" />
-                                    <span className="hidden xs:inline">Tersimpan</span>
-                                </span>
-                            )}
-
-                            {canEdit && !isNewNote && (
-                                <div className="flex items-center gap-1 border-l border-neutral-300 pl-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => onOpenCollab(activeNote)}
-                                        className="p-1 sm:p-1.5 border border-black bg-white hover:bg-[#A388EE] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
-                                        title="Kolaborator Catatan"
+                                {autoSaveStatus === 'saved' && (
+                                    <span
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase bg-[#D4FF32] text-black border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                                        title={lastSavedTime ? `Tersimpan ${lastSavedTime}` : ''}
                                     >
-                                        <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
-                                    </button>
+                                        <Check className="w-3 h-3 text-black" />
+                                        <span>Tersimpan</span>
+                                    </span>
+                                )}
+                            </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => onOpenShare(activeNote)}
-                                        className="p-1 sm:p-1.5 border border-black bg-white hover:bg-[#69D2E7] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
-                                        title="Bagikan Catatan"
-                                    >
-                                        <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
-                                    </button>
+                            {/* Action Buttons: Collab, Share, Trash, Pin, Fullscreen, Close */}
+                            <div className="flex items-center gap-1">
+                                {canEdit && !isNewNote && (
+                                    <div className="flex items-center gap-1 sm:border-l sm:border-neutral-300 sm:pl-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => onOpenCollab(activeNote)}
+                                            className="p-1 sm:p-1.5 border border-black bg-white hover:bg-[#A388EE] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                            title="Kolaborator Catatan"
+                                        >
+                                            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                                        </button>
 
+                                        <button
+                                            type="button"
+                                            onClick={() => onOpenShare(activeNote)}
+                                            className="p-1 sm:p-1.5 border border-black bg-white hover:bg-[#69D2E7] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                            title="Bagikan Catatan"
+                                        >
+                                            <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (confirm('Apakah Anda yakin ingin menghapus catatan ini?')) {
+                                                    onDeleteNote(activeNote.id);
+                                                    onClose();
+                                                }
+                                            }}
+                                            className="p-1 sm:p-1.5 border border-black bg-white hover:bg-rose-100 text-rose-600 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                            title="Hapus Catatan"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Pin / Unpin Toggle (Only if canEdit) */}
+                                {canEdit && (
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            if (confirm('Apakah Anda yakin ingin menghapus catatan ini?')) {
-                                                onDeleteNote(activeNote.id);
-                                                onClose();
-                                            }
+                                            const nextPin = !isPinned;
+                                            setIsPinned(nextPin);
+                                            triggerAutoSave({ isPinned: nextPin });
                                         }}
-                                        className="p-1 sm:p-1.5 border border-black bg-white hover:bg-rose-100 text-rose-600 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
-                                        title="Hapus Catatan"
+                                        className={`p-1 sm:p-1.5 border border-black transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer ${
+                                            isPinned ? 'bg-[#FFDC58] text-black font-bold' : 'bg-white hover:bg-neutral-100 text-neutral-600'
+                                        }`}
+                                        title={isPinned ? 'Lepaskan Sematan (Unpin)' : 'Sematkan Catatan (Pin)'}
                                     >
-                                        <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                        <Pin className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isPinned ? 'fill-black' : ''}`} />
                                     </button>
-                                </div>
-                            )}
+                                )}
 
-                            {/* Pin / Unpin Toggle (Only if canEdit) */}
-                            {canEdit && (
+                                {/* Fullscreen Toggle */}
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        const nextPin = !isPinned;
-                                        setIsPinned(nextPin);
-                                        triggerAutoSave({ isPinned: nextPin });
-                                    }}
-                                    className={`p-1 sm:p-1.5 border border-black transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer ${
-                                        isPinned ? 'bg-[#FFDC58] text-black font-bold' : 'bg-white hover:bg-neutral-100 text-neutral-600'
-                                    }`}
-                                    title={isPinned ? 'Lepaskan Sematan (Unpin)' : 'Sematkan Catatan (Pin)'}
+                                    onClick={() => setIsFullscreen(!isFullscreen)}
+                                    className="p-1 sm:p-1.5 border border-black bg-white hover:bg-[#FFDC58] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                                    title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
                                 >
-                                    <Pin className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isPinned ? 'fill-black' : ''}`} />
+                                    {isFullscreen ? (
+                                        <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                                    ) : (
+                                        <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                                    )}
                                 </button>
-                            )}
 
-                            {/* Fullscreen Toggle */}
-                            <button
-                                type="button"
-                                onClick={() => setIsFullscreen(!isFullscreen)}
-                                className="p-1 sm:p-1.5 border border-black bg-white hover:bg-[#FFDC58] transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
-                                title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
-                            >
-                                {isFullscreen ? (
-                                    <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
-                                ) : (
-                                    <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
-                                )}
-                            </button>
-
-                            {/* Close button [X] */}
-                            <button
-                                type="button"
-                                onClick={handleCloseModal}
-                                className="p-1 sm:p-1.5 border-2 border-black bg-white hover:bg-rose-100 hover:text-rose-600 transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer ml-0.5"
-                                title="Tutup (Esc)"
-                            >
-                                <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
-                            </button>
+                                {/* Close button [X] */}
+                                <button
+                                    type="button"
+                                    onClick={handleCloseModal}
+                                    className="p-1 sm:p-1.5 border-2 border-black bg-white hover:bg-rose-100 hover:text-rose-600 transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer ml-0.5"
+                                    title="Tutup (Esc)"
+                                >
+                                    <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" />
+                                </button>
+                            </div>
                         </div>
                     </div>
 

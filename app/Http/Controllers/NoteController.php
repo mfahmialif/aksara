@@ -170,6 +170,7 @@ class NoteController extends Controller
         }
 
         $validated = $request->validate([
+            'note_group_id' => 'sometimes|required|exists:note_groups,id',
             'title' => 'sometimes|required|string|max:255',
             'category' => 'sometimes|required|in:regular,task',
             'content_json' => 'nullable|string',
@@ -181,6 +182,13 @@ class NoteController extends Controller
             'is_public' => 'sometimes|boolean',
             'public_token' => 'sometimes|nullable|string|max:64',
         ]);
+
+        if (isset($validated['note_group_id']) && $validated['note_group_id'] !== $note->note_group_id) {
+            $targetGroup = NoteGroup::findOrFail($validated['note_group_id']);
+            if (! $targetGroup->canUserEdit($user)) {
+                abort(403, 'Anda tidak memiliki izin memindahkan catatan ke folder ini.');
+            }
+        }
 
         // If category is regular, clear task deadline & reminder
         if (isset($validated['category']) && $validated['category'] === 'regular') {

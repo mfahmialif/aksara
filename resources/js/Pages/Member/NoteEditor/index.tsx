@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { Note, PageProps, NoteGroup, NoteApp } from '@/types';
 import MemberLayout from '@/Layouts/MemberLayout';
@@ -148,9 +148,34 @@ export default function NoteEditor({
     });
     const [mobileTopicDrawerOpen, setMobileTopicDrawerOpen] = useState(false);
 
+    // Helper to push history state for modals (so mobile back button closes modal instead of leaving page)
+    const pushModalState = (modalName: string, url?: string) => {
+        if (typeof window === 'undefined') return;
+        const currentState = window.history.state || {};
+        window.history.pushState({ ...currentState, aksaraModal: modalName }, '', url || window.location.href);
+    };
+
+    const popModalStateIfActive = (modalName: string, fallbackUrl?: string) => {
+        if (typeof window === 'undefined') return;
+        if (window.history.state?.aksaraModal === modalName) {
+            window.history.back();
+        } else if (fallbackUrl) {
+            const currentState = window.history.state || {};
+            window.history.replaceState({ ...currentState, aksaraModal: undefined }, '', fallbackUrl);
+        }
+    };
+
     const handleToggleTopicSidebar = (minimized?: boolean) => {
         if (typeof window !== 'undefined' && window.innerWidth < 768) {
-            setMobileTopicDrawerOpen((prev) => !prev);
+            setMobileTopicDrawerOpen((prev) => {
+                const next = !prev;
+                if (next) {
+                    pushModalState('mobile-drawer');
+                } else {
+                    popModalStateIfActive('mobile-drawer');
+                }
+                return next;
+            });
             return;
         }
         setIsTopicSidebarMinimized((prev) => {
@@ -199,11 +224,145 @@ export default function NoteEditor({
         group: null,
     });
 
+    const noteShareOpenRef = useRef(noteShareOpen);
+    useEffect(() => { noteShareOpenRef.current = noteShareOpen; }, [noteShareOpen]);
+
+    const noteCollabOpenRef = useRef(noteCollabOpen);
+    useEffect(() => { noteCollabOpenRef.current = noteCollabOpen; }, [noteCollabOpen]);
+
+    const groupShareModalStateRef = useRef(groupShareModalState);
+    useEffect(() => { groupShareModalStateRef.current = groupShareModalState; }, [groupShareModalState]);
+
+    const groupCollabModalStateRef = useRef(groupCollabModalState);
+    useEffect(() => { groupCollabModalStateRef.current = groupCollabModalState; }, [groupCollabModalState]);
+
+    const folderModalStateRef = useRef(folderModalState);
+    useEffect(() => { folderModalStateRef.current = folderModalState; }, [folderModalState]);
+
+    const editAppModalOpenRef = useRef(editAppModalOpen);
+    useEffect(() => { editAppModalOpenRef.current = editAppModalOpen; }, [editAppModalOpen]);
+
+    const appCollabOpenRef = useRef(appCollabOpen);
+    useEffect(() => { appCollabOpenRef.current = appCollabOpen; }, [appCollabOpen]);
+
+    const appShareOpenRef = useRef(appShareOpen);
+    useEffect(() => { appShareOpenRef.current = appShareOpen; }, [appShareOpen]);
+
+    const clonesModalOpenRef = useRef(clonesModalOpen);
+    useEffect(() => { clonesModalOpenRef.current = clonesModalOpen; }, [clonesModalOpen]);
+
+    const duplicateModalOpenRef = useRef(duplicateModalOpen);
+    useEffect(() => { duplicateModalOpenRef.current = duplicateModalOpen; }, [duplicateModalOpen]);
+
+    const syncModalOpenRef = useRef(syncModalOpen);
+    useEffect(() => { syncModalOpenRef.current = syncModalOpen; }, [syncModalOpen]);
+
+    const mobileTopicDrawerOpenRef = useRef(mobileTopicDrawerOpen);
+    useEffect(() => { mobileTopicDrawerOpenRef.current = mobileTopicDrawerOpen; }, [mobileTopicDrawerOpen]);
+
+    const keepModalNoteRef = useRef(keepModalNote);
+    useEffect(() => { keepModalNoteRef.current = keepModalNote; }, [keepModalNote]);
+
+    // Initial note_id handling: push state so Back closes note rather than exiting
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('note_id')) {
+                const noteId = params.get('note_id');
+                const baseUrl = is_public_view ? window.location.pathname : `/app/${app.id}`;
+                const currentState = window.history.state || {};
+                window.history.replaceState({ ...currentState, base: true }, '', baseUrl);
+                const modalUrl = is_public_view
+                    ? `${window.location.pathname}?note_id=${noteId}`
+                    : `/app/${app.id}?note_id=${noteId}`;
+                window.history.pushState({ ...currentState, aksaraModal: 'keep-note', noteId }, '', modalUrl);
+            }
+        }
+    }, []);
+
+    // Intercept hardware/mobile back button to close any active modal
+    useEffect(() => {
+        const handlePopState = (e: PopStateEvent) => {
+            if (noteShareOpenRef.current) {
+                e.stopImmediatePropagation();
+                setNoteShareOpen(false);
+                return;
+            }
+            if (noteCollabOpenRef.current) {
+                e.stopImmediatePropagation();
+                setNoteCollabOpen(false);
+                return;
+            }
+            if (groupShareModalStateRef.current.isOpen) {
+                e.stopImmediatePropagation();
+                setGroupShareModalState({ isOpen: false, group: null });
+                return;
+            }
+            if (groupCollabModalStateRef.current.isOpen) {
+                e.stopImmediatePropagation();
+                setGroupCollabModalState({ isOpen: false, group: null });
+                return;
+            }
+            if (folderModalStateRef.current.isOpen) {
+                e.stopImmediatePropagation();
+                setFolderModalState((prev) => ({ ...prev, isOpen: false }));
+                return;
+            }
+            if (editAppModalOpenRef.current) {
+                e.stopImmediatePropagation();
+                setEditAppModalOpen(false);
+                return;
+            }
+            if (appCollabOpenRef.current) {
+                e.stopImmediatePropagation();
+                setAppCollabOpen(false);
+                return;
+            }
+            if (appShareOpenRef.current) {
+                e.stopImmediatePropagation();
+                setAppShareOpen(false);
+                return;
+            }
+            if (clonesModalOpenRef.current) {
+                e.stopImmediatePropagation();
+                setClonesModalOpen(false);
+                return;
+            }
+            if (duplicateModalOpenRef.current) {
+                e.stopImmediatePropagation();
+                setDuplicateModalOpen(false);
+                return;
+            }
+            if (syncModalOpenRef.current) {
+                e.stopImmediatePropagation();
+                setSyncModalOpen(false);
+                return;
+            }
+            if (mobileTopicDrawerOpenRef.current) {
+                e.stopImmediatePropagation();
+                setMobileTopicDrawerOpen(false);
+                return;
+            }
+            if (keepModalNoteRef.current) {
+                setKeepModalNote(null);
+                const baseUrl = is_public_view ? window.location.pathname : `/app/${app.id}`;
+                window.history.replaceState({ ...window.history.state, aksaraModal: undefined }, '', baseUrl);
+                return;
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, []);
+
     const handleOpenShareGroup = (group: NoteGroup) => {
         setGroupShareModalState({
             isOpen: true,
             group,
         });
+        pushModalState('group-share');
     };
 
     const handleOpenCollabGroup = (group: NoteGroup) => {
@@ -211,6 +370,7 @@ export default function NoteEditor({
             isOpen: true,
             group,
         });
+        pushModalState('group-collab');
     };
 
 
@@ -250,26 +410,18 @@ export default function NoteEditor({
     const handleSelectNote = (note: Note) => {
         setKeepModalNote(note);
         if (typeof window !== 'undefined') {
-            if (is_public_view) {
-                const url = new URL(window.location.href);
-                url.searchParams.set('note_id', note.id);
-                window.history.replaceState({}, '', url.pathname + url.search);
-            } else {
-                window.history.replaceState({}, '', `/app/${app.id}?note_id=${note.id}`);
-            }
+            const targetUrl = is_public_view
+                ? `${window.location.pathname}?note_id=${note.id}`
+                : `/app/${app.id}?note_id=${note.id}`;
+            pushModalState('keep-note', targetUrl);
         }
     };
 
     const handleCloseKeepModal = () => {
         setKeepModalNote(null);
         if (typeof window !== 'undefined') {
-            if (is_public_view) {
-                const url = new URL(window.location.href);
-                url.searchParams.delete('note_id');
-                window.history.replaceState({}, '', url.pathname + (url.search || ''));
-            } else {
-                window.history.replaceState({}, '', `/app/${app.id}`);
-            }
+            const baseUrl = is_public_view ? window.location.pathname : `/app/${app.id}`;
+            popModalStateIfActive('keep-note', baseUrl);
         }
     };
 
@@ -294,11 +446,28 @@ export default function NoteEditor({
     const handleNoteUpdated = (updatedNote: Note) => {
         setLocalGroups((prevGroups) =>
             prevGroups.map((g) => {
+                const hasNote = (g.notes || []).some((n) => n.id === updatedNote.id);
                 if (g.id === updatedNote.note_group_id) {
-                    const updatedNotes = (g.notes || []).map((n) =>
-                        n.id === updatedNote.id ? { ...n, ...updatedNote } : n
-                    );
-                    return { ...g, notes: updatedNotes };
+                    if (hasNote) {
+                        return {
+                            ...g,
+                            notes: (g.notes || []).map((n) =>
+                                n.id === updatedNote.id ? { ...n, ...updatedNote } : n
+                            ),
+                        };
+                    } else {
+                        // Note was moved into this group! Add it to the top
+                        return {
+                            ...g,
+                            notes: [updatedNote, ...(g.notes || [])],
+                        };
+                    }
+                } else if (hasNote) {
+                    // Note was moved out of this group! Remove it
+                    return {
+                        ...g,
+                        notes: (g.notes || []).filter((n) => n.id !== updatedNote.id),
+                    };
                 }
                 return g;
             })
@@ -441,6 +610,12 @@ export default function NoteEditor({
             collaborators: [],
         };
         setKeepModalNote(newDraft);
+        if (typeof window !== 'undefined') {
+            const targetUrl = is_public_view
+                ? `${window.location.pathname}?draft=new`
+                : `/app/${app.id}?draft=new`;
+            pushModalState('keep-note', targetUrl);
+        }
     };
 
     const handleCreateNote = (groupId: string, category: 'regular' | 'task' = 'regular') => {
@@ -479,6 +654,7 @@ export default function NoteEditor({
             mode: 'create',
             group: null,
         });
+        pushModalState('folder-modal');
     };
 
     const handleOpenEditGroup = (group: NoteGroup) => {
@@ -487,6 +663,7 @@ export default function NoteEditor({
             mode: 'edit',
             group,
         });
+        pushModalState('folder-modal');
     };
 
     const handleSaveGroupModal = async (name: string, color: string) => {
@@ -621,12 +798,16 @@ export default function NoteEditor({
             shareItemId={share_item_id || (is_group_shared_view && selected_group ? selected_group.id : (is_single_note_view && selected_note ? selected_note.id : localApp.id))}
             sharePublicToken={share_public_token || (is_group_shared_view && selected_group ? selected_group.public_token || undefined : (is_single_note_view && selected_note ? selected_note.public_token || undefined : localApp.public_token))}
             isPublicView={is_public_view}
-            onOpenEditApp={canManageSettings ? () => setEditAppModalOpen(true) : undefined}
+            onOpenEditApp={canManageSettings ? () => {
+                setEditAppModalOpen(true);
+                pushModalState('edit-app');
+            } : undefined}
             onOpenCollab={() => {
                 if (is_group_shared_view && selected_group) {
                     handleOpenCollabGroup(selected_group);
                 } else {
                     setAppCollabOpen(true);
+                    pushModalState('app-collab');
                 }
             }}
             onOpenShare={() => {
@@ -634,11 +815,21 @@ export default function NoteEditor({
                     handleOpenShareGroup(selected_group);
                 } else {
                     setAppShareOpen(true);
+                    pushModalState('app-share');
                 }
             }}
-            onOpenDuplicate={() => setDuplicateModalOpen(true)}
-            onOpenSync={() => setSyncModalOpen(true)}
-            onOpenClones={() => setClonesModalOpen(true)}
+            onOpenDuplicate={() => {
+                setDuplicateModalOpen(true);
+                pushModalState('duplicate-modal');
+            }}
+            onOpenSync={() => {
+                setSyncModalOpen(true);
+                pushModalState('sync-modal');
+            }}
+            onOpenClones={() => {
+                setClonesModalOpen(true);
+                pushModalState('clones-modal');
+            }}
             onOpenShareGroup={handleOpenShareGroup}
             onOpenAddGroup={handleOpenAddGroup}
             onOpenEditGroup={handleOpenEditGroup}
@@ -677,7 +868,12 @@ export default function NoteEditor({
                     isMinimized={isTopicSidebarMinimized}
                     setIsMinimized={(val) => handleToggleTopicSidebar(val)}
                     mobileDrawerOpen={mobileTopicDrawerOpen}
-                    setMobileDrawerOpen={setMobileTopicDrawerOpen}
+                    setMobileDrawerOpen={(open) => {
+                        setMobileTopicDrawerOpen(open);
+                        if (!open) {
+                            popModalStateIfActive('mobile-drawer');
+                        }
+                    }}
                 />
 
                 {/* PRIMARY GOOGLE KEEP-STYLE WORKSPACE (In-Place Creation, Filter & Cards Grid) */}
@@ -698,6 +894,7 @@ export default function NoteEditor({
                         onOpenNoteShare={(note) => {
                             setKeepModalNote(note);
                             setNoteShareOpen(true);
+                            pushModalState('note-share');
                         }}
                         defaultReminderDays={user?.default_reminder_days || 1}
                         onNoteCreated={handleNoteCreated}
@@ -726,10 +923,12 @@ export default function NoteEditor({
                     onOpenCollab={(n) => {
                         setKeepModalNote(n);
                         setNoteCollabOpen(true);
+                        pushModalState('note-collab');
                     }}
                     onOpenShare={(n) => {
                         setKeepModalNote(n);
                         setNoteShareOpen(true);
+                        pushModalState('note-share');
                     }}
                 />
             )}
@@ -738,7 +937,10 @@ export default function NoteEditor({
             {canManageSettings && (
                 <EditAppModal
                     isOpen={editAppModalOpen}
-                    onClose={() => setEditAppModalOpen(false)}
+                    onClose={() => {
+                        setEditAppModalOpen(false);
+                        popModalStateIfActive('edit-app');
+                    }}
                     app={localApp}
                     isOwner={is_owner}
                     onUpdated={(updated) => {
@@ -746,6 +948,7 @@ export default function NoteEditor({
                     }}
                     onDeleted={() => {
                         setEditAppModalOpen(false);
+                        popModalStateIfActive('edit-app');
                     }}
                 />
             )}
@@ -753,7 +956,10 @@ export default function NoteEditor({
             {/* App Level Collaborators Modal */}
             <CollaboratorsModal
                 isOpen={appCollabOpen}
-                onClose={() => setAppCollabOpen(false)}
+                onClose={() => {
+                    setAppCollabOpen(false);
+                    popModalStateIfActive('app-collab');
+                }}
                 level="app"
                 targetId={app.id}
                 title={app.name}
@@ -763,7 +969,10 @@ export default function NoteEditor({
             {/* App Level Share Modal */}
             <ShareModal
                 isOpen={appShareOpen}
-                onClose={() => setAppShareOpen(false)}
+                onClose={() => {
+                    setAppShareOpen(false);
+                    popModalStateIfActive('app-share');
+                }}
                 level="app"
                 targetId={localApp.id}
                 title={localApp.name}
@@ -787,7 +996,10 @@ export default function NoteEditor({
             {keepModalNote && (
                 <CollaboratorsModal
                     isOpen={noteCollabOpen}
-                    onClose={() => setNoteCollabOpen(false)}
+                    onClose={() => {
+                        setNoteCollabOpen(false);
+                        popModalStateIfActive('note-collab');
+                    }}
                     level="note"
                     targetId={keepModalNote.id}
                     title={keepModalNote.title}
@@ -799,7 +1011,10 @@ export default function NoteEditor({
             {keepModalNote && (
                 <ShareModal
                     isOpen={noteShareOpen}
-                    onClose={() => setNoteShareOpen(false)}
+                    onClose={() => {
+                        setNoteShareOpen(false);
+                        popModalStateIfActive('note-share');
+                    }}
                     level="note"
                     targetId={keepModalNote.id}
                     title={keepModalNote.title}
@@ -853,7 +1068,10 @@ export default function NoteEditor({
             {groupShareModalState.group && (
                 <ShareModal
                     isOpen={groupShareModalState.isOpen}
-                    onClose={() => setGroupShareModalState((prev) => ({ ...prev, isOpen: false }))}
+                    onClose={() => {
+                        setGroupShareModalState((prev) => ({ ...prev, isOpen: false }));
+                        popModalStateIfActive('group-share');
+                    }}
                     level="group"
                     targetId={groupShareModalState.group.id}
                     title={groupShareModalState.group.name}
@@ -904,7 +1122,10 @@ export default function NoteEditor({
             {/* Folder Add / Edit Modal */}
             <FolderModal
                 isOpen={folderModalState.isOpen}
-                onClose={() => setFolderModalState((prev) => ({ ...prev, isOpen: false }))}
+                onClose={() => {
+                    setFolderModalState((prev) => ({ ...prev, isOpen: false }));
+                    popModalStateIfActive('folder-modal');
+                }}
                 mode={folderModalState.mode}
                 initialGroup={folderModalState.group}
                 onSubmit={handleSaveGroupModal}
@@ -916,7 +1137,10 @@ export default function NoteEditor({
             {groupCollabModalState.group && (
                 <CollaboratorsModal
                     isOpen={groupCollabModalState.isOpen}
-                    onClose={() => setGroupCollabModalState({ isOpen: false, group: null })}
+                    onClose={() => {
+                        setGroupCollabModalState({ isOpen: false, group: null });
+                        popModalStateIfActive('group-collab');
+                    }}
                     level="group"
                     targetId={groupCollabModalState.group.id}
                     title={groupCollabModalState.group.name}
@@ -927,14 +1151,20 @@ export default function NoteEditor({
             {/* Duplicate App Modal */}
             <DuplicateAppModal
                 isOpen={duplicateModalOpen}
-                onClose={() => setDuplicateModalOpen(false)}
+                onClose={() => {
+                    setDuplicateModalOpen(false);
+                    popModalStateIfActive('duplicate-modal');
+                }}
                 app={localApp}
             />
 
             {/* Sync Workspace Modal */}
             <SyncWorkspaceModal
                 isOpen={syncModalOpen}
-                onClose={() => setSyncModalOpen(false)}
+                onClose={() => {
+                    setSyncModalOpen(false);
+                    popModalStateIfActive('sync-modal');
+                }}
                 currentApp={localApp}
                 onSuccess={() => {
                     router.reload();
@@ -945,7 +1175,10 @@ export default function NoteEditor({
             {is_owner && (
                 <ClonesModal
                     isOpen={clonesModalOpen}
-                    onClose={() => setClonesModalOpen(false)}
+                    onClose={() => {
+                        setClonesModalOpen(false);
+                        popModalStateIfActive('clones-modal');
+                    }}
                     app={localApp}
                 />
             )}
